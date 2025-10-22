@@ -1,4 +1,4 @@
-energia.components.operation.storage
+﻿energia.components.operation.storage
 ====================================
 
 .. automodule:: energia.components.operation.storage
@@ -13,5 +13,4 @@ energia.components.operation.storage
       Process
       Storage
       Stored
-      cached_property
    

@@ -20,7 +20,7 @@ Energia on Python
    tutorials/additional_features/index
    tutorials/troubleshooting/index
    tutorials/handling_attributes/index
-   tutorials/mathematical_program/index
+   tutorials/optimization_analysis/index
 
 
 .. toctree::
