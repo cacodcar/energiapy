@@ -1,20 +1,25 @@
 """Impact Indicator Categories"""
 
-from dataclasses import dataclass
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from .indicator import Indicator
 
+if TYPE_CHECKING:
+    from ..measure.unit import Unit
 
-@dataclass
+
 class Environ(Indicator):
-    """Environmental Impact
+    """
+    Environmental Impact
 
     :param basis: Unit basis of the component. Defaults to None.
     :type basis: Unit, optional
     :param label: An optional label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: An optional citation or description for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: An optional citation or description for the component. Defaults to None.
+    :type citations: str | list[str] | dict[str, str | list[str]], optional
 
     :ivar model: The model to which the component belongs.
     :vartype model: Model
@@ -29,17 +34,25 @@ class Environ(Indicator):
     :vartype aspects: dict[Aspect, list[Domain]]
     """
 
+    def __init__(
+        self, basis: Unit | None = None, label: str = "", citations: str = "", **kwargs
+    ):
 
-@dataclass
+        Indicator.__init__(
+            self, basis=basis, label=label, citations=citations, **kwargs
+        )
+
+
 class Social(Indicator):
-    """Soc Impact
+    """
+    Social Impact
 
     :param basis: Unit basis of the component. Defaults to None.
     :type basis: Unit, optional
     :param label: An optional label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: An optional citation or description for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: An optional citation or description for the component. Defaults to None.
+    :type citations: str | list[str] | dict[str, str | list[str]], optional
 
     :ivar model: The model to which the component belongs.
     :vartype model: Model
@@ -54,17 +67,25 @@ class Social(Indicator):
     :vartype aspects: dict[Aspect, list[Domain]]
     """
 
+    def __init__(
+        self, basis: Unit | None = None, label: str = "", citations: str = "", **kwargs
+    ):
 
-@dataclass
+        Indicator.__init__(
+            self, basis=basis, label=label, citations=citations, **kwargs
+        )
+
+
 class Economic(Indicator):
-    """Economic impact
+    """
+    Economic impact
 
     :param basis: Unit basis of the component. Defaults to None.
     :type basis: Unit, optional
     :param label: An optional label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: An optional citation or description for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: An optional citation or description for the component. Defaults to None.
+    :type citations: str | list[str] | dict[str, str | list[str]], optional
 
     :ivar model: The model to which the component belongs.
     :vartype model: Model
@@ -78,3 +99,11 @@ class Economic(Indicator):
     :ivar aspects: Aspects associated with the component with domains.
     :vartype aspects: dict[Aspect, list[Domain]]
     """
+
+    def __init__(
+        self, basis: Unit | None = None, label: str = "", citations: str = "", **kwargs
+    ):
+
+        Indicator.__init__(
+            self, basis=basis, label=label, citations=citations, **kwargs
+        )

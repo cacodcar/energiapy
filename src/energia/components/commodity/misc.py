@@ -1,14 +1,18 @@
-from dataclasses import dataclass
+"""Miscellaneous Commodities"""
 
-# from ..impact.categories import Eco
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from .resource import Resource
 
-# from ..operation.task import Task
+if TYPE_CHECKING:
+    from ..measure.unit import Unit
 
 
-@dataclass
 class Package(Resource):
-    """Package, discrete
+    """
+    Package, discrete
 
     :param label: Label of the commodity, used for plotting. Defaults to None.
     :type label: str, optional
@@ -35,10 +39,19 @@ class Package(Resource):
     :vartype insitu: bool, optional
     """
 
+    def __init__(
+        self,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
+        Resource.__init__(self, basis=basis, label=label, citations=citations, **kwargs)
 
-@dataclass
+
 class Human(Resource):
-    """Human
+    """
+    Human
 
     :param label: Label of the commodity, used for plotting. Defaults to None.
     :type label: str, optional
@@ -65,10 +78,19 @@ class Human(Resource):
     :vartype insitu: bool, optional
     """
 
+    def __init__(
+        self,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
+        Resource.__init__(self, basis=basis, label=label, citations=citations, **kwargs)
 
-@dataclass
+
 class Mana(Resource):
-    """Mana
+    """
+    Mana
 
     :param label: Label of the commodity, used for plotting. Defaults to None.
     :type label: str, optional
@@ -95,10 +117,19 @@ class Mana(Resource):
     :vartype insitu: bool, optional
     """
 
+    def __init__(
+        self,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
+        Resource.__init__(self, basis=basis, label=label, citations=citations, **kwargs)
 
-@dataclass
+
 class Etc(Resource):
-    """Etc, used for resources that do not fit into the other categories
+    """
+    Etc, used for resources that do not fit into the other categories
 
     :param label: Label of the commodity, used for plotting. Defaults to None.
     :type label: str, optional
@@ -124,3 +155,12 @@ class Etc(Resource):
     :ivar insitu: If the commodity only exists insitu, i.e., does not scale any domains
     :vartype insitu: bool, optional
     """
+
+    def __init__(
+        self,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
+        Resource.__init__(self, basis=basis, label=label, citations=citations, **kwargs)

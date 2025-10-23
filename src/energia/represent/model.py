@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Optional, Self, Type
+from typing import TYPE_CHECKING, Literal, Self, Type
 
 from dill import dump
-from ppopt.mplp_program import MPLP_Program
-from ppopt.solution import Solution as MPSolution
 
 from .._core._x import _X
 from ..components.commodity.currency import Currency
@@ -17,8 +16,10 @@ from ..components.commodity.emission import Emission
 from ..components.commodity.land import Land
 from ..components.commodity.material import Material
 from ..components.commodity.resource import Resource
-from ..components.game.couple import Couple
+from ..components.game.couple import Interact
 from ..components.game.player import Player
+# from ..components.graph.edge import Edge
+# from ..components.graph.node import Node
 from ..components.impact.categories import Economic, Environ, Social
 from ..components.measure.unit import Unit
 from ..components.operation.process import Process
@@ -29,38 +30,39 @@ from ..components.spatial.location import Location
 from ..components.temporal.modes import Modes
 from ..components.temporal.periods import Periods
 from ..components.temporal.scales import TemporalScales
-from ..dimensions.consequence import Consequence
+from ..dimensions.impact import Impact
 from ..dimensions.problem import Problem
 from ..dimensions.space import Space
 from ..dimensions.system import System
 from ..dimensions.time import Time
-from ..library.recipes import (
-    capacity_sizing,
-    economic,
-    environmental,
-    free_movement,
-    inventory_sizing,
-    operating,
-    social,
-    trade,
-    usage,
-)
-from ..modeling.parameters.conversion import Conversion
+from ..library.aliases import aspect_aliases
+from ..library.instructions import costing_commodity, costing_operation
+from ..library.recipes import (capacity_sizing, economic, environmental,
+                               free_movement, inventory_sizing, operating,
+                               social, trade, usage)
+from ..modeling.parameters.instruction import Instruction
 from ..modeling.variables.control import Control
 from ..modeling.variables.recipe import Recipe
-from ..modeling.variables.states import Impact, State, Stream
+from ..modeling.variables.states import Consequence, State, Stream
 from .ations.graph import Graph
 from .ations.program import Program
+
+logger = logging.getLogger("energia")
+logger.setLevel(logging.INFO)
+
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
 
 if TYPE_CHECKING:
     from enum import Enum
     from typing import DefaultDict
 
-    from gana.block.solution import Solution
-    from gurobipy import Model as GPModel
-
+    from .._core._commodity import _Commodity
     from .._core._component import _Component
-    from ..components.commodity._commodity import _Commodity
     from ..modeling.indices.domain import Domain
     from ..modeling.variables.aspect import Aspect
     from ..modeling.variables.sample import Sample
@@ -113,8 +115,8 @@ class Model:
     :vartype siunits_set: bool
     :ivar cookbook: Recipes to create Aspects.
     :vartype cookbook: dict[str, Recipe]
-    :ivar attr_map: Map of attribute names to recipes for creating them.
-    :vartype attr_map: dict[str, dict[str, Recipe]]
+    :ivar directory: Map of attribute names to recipes for creating them.
+    :vartype directory: dict[str, dict[str, Recipe]]
     :ivar classifiers: List of classifiers for the Model.
     :vartype classifiers: list[Enum]
     :ivar grb: Dictionary which tells you what aspects of resource have GRB {loc: time: []} and {time: loc: []}.
@@ -131,7 +133,7 @@ class Model:
     """
 
     name: str = "m"
-    init: Optional[list[Callable[Self]]] = None
+    init: list[Callable[[Self]]] | None = None
     default: bool = True
     capacitate: bool = False
 
@@ -142,74 +144,134 @@ class Model:
         # map of what representation and collection within that representation
         # an object of a particular type belongs to
 
-        # the structure of components:
-        # I Temporal representation (Time):
-        # 1.  Periods (Periods) generates a bespoke discretization.
-        # II Spatial representation (Space):
-        # 1. Spatial representation (Space). Location (Loc) generate a bespoke discretization.
-        # III Streams (System):
-        # 1. Commodity (Resource) of any kind
-        # 2. Emission (Emission) resource
-        # 3. Land (Land) resource
-        # 4. Money (Currency)
-        # 5. Material (Material) used to setup processes
-        # 6. etc. societal (Jobs), etc (Etc).
-        # IV Operations (System):
-        # 1. A production operation (Process) which describes a task in the system that involves conversion of resources
-        # 2. A storage operation (Storage) which describes a task in the system that involves storing (charge) resources
-        # and retrieving (discharge) them at later times.
-        # 3. A transport operation (Transport) which describes a task in the system that involves transporting resources from
-        #    one location to another.
-        # V Impact, scales a stream and projects onto a common metric
-        #   1. Impact (Impact) categories include Eco, Soc
-
-        self.update_map = {
+        # --------------------------------------------------------------------
+        # * Component Mapping to Dimension and Collection
+        # --------------------------------------------------------------------
+        # Dimensions in brackets
+        self.familytree = {
+            # * I Temporal (Time):
+            # 1.  Periods (Periods) generates a bespoke discretization.
             Periods: ("time", "periods"),
+            # 2. Modes discrete options in the same time
             Modes: ("time", "modes"),
+            # * II Spatial (Space):
+            # Spatial representation (Space).
+            # 1. a bespoke discretization.
             Location: ("space", "locations"),
+            # 2. link between them
             Linkage: ("space", "linkages"),
+            # * III Streams (System):
+            # All are Commodity derived:
+            # 1. Money (Currency)
+            Currency: ("system", "currencies"),
+            # 2. Land (Land) resource
+            Land: ("system", "lands"),
+            # 3. Emission (Emission) resource
+            Emission: ("system", "emissions"),
+            # Resource is a general Commodity
+            # These are Resource subsets
+            # 1. Material (Material) used to setup processes
+            Material: ("system", "materials"),
+            # 2. etc. societal (Jobs), etc (Etc).
+            Resource: ("system", "resources"),
+            # * IV Operations (System):
+            # 1. A production operation (Process) involves conversion of resources
+            Process: ("system", "processes"),
+            # 2. A transport operation (Transport) which describes a task in the system
+            # that involves transporting resources from
+            #    one location to another.
+            Transport: ("system", "transports"),
+            # 3. A storage operation (Storage) stores (charges)
+            # and retrieves (discharge) resources
+            Storage: ("system", "storages"),
+            # *V Indicators (Consequence):
+            # scales a stream and projects onto a common metric
+            # categories include
             Environ: (
-                "consequence",
-                "envs",
+                "impact",
+                "environment",
             ),
             Social: (
-                "consequence",
-                "socs",
+                "impact",
+                "society",
             ),
-            Economic: ("consequence", "ecos"),
-            Process: ("system", "processes"),
-            Storage: ("system", "storages"),
-            Transport: ("system", "transports"),
-            Player: ("system", "players"),
-            Couple: ("system", "couples"),
-            Currency: ("system", "currencies"),
-            Land: ("system", "lands"),
-            Emission: ("system", "emissions"),
-            Material: ("system", "materials"),
-            Resource: ("system", "resources"),
+            Economic: ("impact", "economy"),
+            # * VI Game Components
+            # To model Competition
+            Player: ("game", "players"),
+            Interact: ("game", "interacts"),
+            # * VII Problem Aspects
+            # The problem at hand
+            # 1. to control the volume of streams
             Control: ("problem", "controls"),
+            # 2. movement
             Stream: ("problem", "streams"),
+            # 3. size, quantity
             State: ("problem", "states"),
-            Impact: ("problem", "impacts"),
+            # 4. consequence
+            Consequence: ("problem", "consequences"),
         }
 
-        self.dimension_map = {
-            collection: dimension for dimension, collection in self.update_map.values()
+        # * Maps Components to Dimensions
+        # derived from familytree
+        self.ancestry = {
+            collection: dimension for dimension, collection in self.familytree.values()
         }
 
-        self.program_collections = [
-            "constraint_sets",
-            "function_sets",
-            "variable_sets",
-            "parameter_sets",
-            "theta_sets",
+        # --------------------------------------------------------------------
+        # * Dimensions or Representation
+        # --------------------------------------------------------------------
+
+        # * I Dimensions
+        # * 1. Time with Periods and Modes
+        self.time = Time(self)
+        # * 2. Space with Locations and Linkages
+        self.space = Space(self)
+        # * 3. Impact with Indicator categories
+        self.impact = Impact(self)
+        # * 4. System (Resource Task Network)
+        self.system = System(self)
+
+        # * II Representations
+        # * 1. Graph with Edges and Nodes
+        self.graph = Graph(self)
+        # * 2. Problem at hand
+        self.problem = Problem(self)
+        # * 3 mathematical Program of mpMINLP subclass
+        self.program = Program(model=self)
+        # shorthand
+        self._ = self.program
+
+        # --------------------------------------------------------------------
+        # * Attributes Inherited from Dimensions or Representations
+        # --------------------------------------------------------------------
+        # Start with patterened
+        self.program_attrs = [
+            "constraint",
+            "function",
+            "variable",
+            "parameter",
+            "theta",
+        ]
+        # word -> words and word_sets
+        self.program_attrs += [
+            w + s for w in self.program_attrs for s in ['s', '_sets']
+        ]
+        self.program_attrs += ["solution", "formulation", "evaluation"]
+        # word -> n_word
+        self.program_attrs += ['n_' + w for w in self.program_attrs]
+        self.program_attrs += [
             "index_sets",
-            "constraints",
-            "functions",
-            "variables",
-            "thetas",
             "indices",
             "objectives",
+            "parameter_sets",
+            "X",
+        ]
+        # self.program_attrs = {i: self.program for i in  self.program_attrs}
+
+        # properties that can be called by model
+        # these never get set
+        _program_matrices = [
             "A",
             "B",
             "C",
@@ -224,62 +286,105 @@ class Model:
             "Z",
             "P",
         ]
+        self.properties = {
+            "horizon": self.time,
+            "network": self.space,
+            "indicators": self.impact,
+            "operations": self.system,
+            "aspects": self.problem,
+            "domains": self.problem,
+            **{i: self.program for i in _program_matrices},
+        }
 
+        # --------------------------------------------------------------------
+        # * Default Components
+        # --------------------------------------------------------------------
+        # if any of these attributes are called,
+        # or an exiting one is returned
         self.default_components = {
-            "l": self.default_location,
-            "t0": self.default_periods,
-            "t": self.default_periods,
-            "money": self.default_currency,
+            "l": self._l0,
+            "l0": self._l0,
+            "t0": self._t0,
+            "t": self._t0,
+            "money": self._cash,
         }
 
         self.graph_components = ["edges", "nodes"]
 
-        # map of attribute names to recipes for creating them
-        self.attr_map: dict[str, dict[str, Recipe]] = {}
-
-        # added attributes mapping to the created Aspect objects
-        self._attr_map: dict[str, Aspect] = {}
-
-        # maps to recipes for creating aspects
+        # --------------------------------------------------------------------
+        # * Books of Maps
+        # --------------------------------------------------------------------
+        # Maps between:
+        # * matching_aspect -> Recipe
         self.cookbook: dict[str, Recipe] = {}
+        # * parameter_name -> parameter_handling_instruction
+        self.manual: dict[str, Instruction] = {}
+        # * already_defined_user_input_attr -> matching_aspect
+        self.registry: dict[str, Aspect] = {}
+        # * user_input_attr -> matching_aspect -> Recipe
+        self.directory: dict[str, dict[str, Recipe]] = {}
 
-        # Temporal Scope
-        self.time = Time(self)
-        # Spatial Scope
-        self.space = Space(self)
+        # --------------------------------------------------------------------
+        # * Constraint Ledger
+        # --------------------------------------------------------------------
 
-        # Impact on the exterior
-        self.consequence = Consequence(self)
+        # Dictionary which tells you what aspects of resource
+        # have been set in what location and time
 
-        # System (Resource Task Network)
-        self.system = System(self)
+        # * General Resource Balances
+        self.balances: dict[
+            _Commodity,
+            dict[Location | Linkage, dict[Periods, list[Aspect]]],
+        ] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        # Dictionary which tells you what aspects of what component
+        # have been bound at what location and time
 
-        # Graph (Network)
-        self.graph = Graph(self)
+        # * Sample Dispositions
+        self.dispositions: dict[
+            Aspect,
+            dict[
+                _Commodity | Process | Storage | Transport,
+                dict[Location | Linkage, dict[Periods, list[Aspect]]],
+            ],
+        ] = {}
 
-        # the problem
-        self.problem = Problem(self)
+        # * Drawn Maps
+        self.maps: dict[Aspect, dict[Domain, dict[str, list[Domain]]]] = {}
+        self.maps_report: dict[Aspect, dict[Domain, dict[str, list[Domain]]]] = {}
 
-        # mathematical program
-        self.program = Program(model=self)
-        # shorthand
-        self._ = self.program
-
-        # measuring units
-        self.units: list[Unit] = []
-        self.conversions: list[Conversion] = []  # not added to program
-        self.convmatrix: dict[Process, dict[Resource, int | float | list]] = {}
-
+        # * Generated Modes
         self.modes_dict: dict[Sample, Modes] = {}
 
+        # * Conversion Matrix
+        self.convmatrix: dict[Process, dict[Resource, int | float | list]] = {}
+
+        # --------------------------------------------------------------------
+        # * Measurement Related
+        # --------------------------------------------------------------------
+        self.units: list[Unit] = []
         # if SI units have been set
         self.siunits_set: bool = False
 
+        # --------------------------------------------------------------------
+        # * Model Classification
+        # --------------------------------------------------------------------
+        self.classifiers: dict[str, list[Enum]] = {
+            "uncertainty": [],
+            "structure": [],
+            "scale": [],
+            "paradigm": [],
+        }
+
+        # --------------------------------------------------------------------
+        # * Model Initialization
+        # --------------------------------------------------------------------
+        # functions are passed and initialized on self
         if not self.init:
             self.init = []
 
         if self.default:
             self.init += [
+                # Recipes
                 capacity_sizing,
                 operating,
                 inventory_sizing,
@@ -289,74 +394,18 @@ class Model:
                 environmental,
                 social,
                 usage,
+                aspect_aliases,
+                # Instructions
+                costing_operation,
+                costing_commodity,
             ]
 
         for func in self.init:
             func(self)
 
-        # # introduce the dimensions of the model
-        # Decisions.__post_init__(self)
-
-        self.classifiers: dict[str, list[Enum]] = {
-            "uncertainty": [],
-            "structure": [],
-            "scale": [],
-            "paradigm": [],
-        }
-
-        # Dictionary which tells you what aspects of resource
-        # have been set in what location and time
-        self.grb: dict[
-            _Commodity,
-            dict[Location | Linkage, dict[Periods, list[Aspect]]],
-        ] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-
-        # Dictionary which tells you what aspects of what component
-        # have been bound at what location and time
-        self.dispositions: dict[
-            Aspect,
-            dict[
-                _Commodity | Process | Storage | Transport,
-                dict[Location | Linkage, dict[Periods, list[Aspect]]],
-            ],
-        ] = {}
-
-        self.maps: dict[Aspect, dict[Domain, dict[str, list[Domain]]]] = {}
-        self.maps_report: dict[Aspect, dict[Domain, dict[str, list[Domain]]]] = {}
-
-    # -----------------------------------------------------
-    #              Set Component
-    # -----------------------------------------------------
-
-    @property
-    def horizon(self) -> Periods:
-        """The horizon of the Model"""
-        return self.time.horizon
-
-    @property
-    def network(self) -> Location:
-        """The network of the Model"""
-        return self.space.network
-
-    @property
-    def indicators(self) -> list[Social | Environ | Economic]:
-        """Indicators"""
-        return self.consequence.indicators
-
-    @property
-    def operations(self) -> list[Process | Storage | Transport]:
-        """The Operations"""
-        return self.system.operations
-
-    @property
-    def solution(self) -> dict[int, Solution | MPSolution]:
-        """The solution of the program"""
-        return self.program.solution
-
-    @property
-    def formulation(self) -> dict[int, GPModel | MPLP_Program]:
-        """The formulations of the program"""
-        return self.program.formulation
+    # -------------------------------------------------------------------
+    # * Onboard Component and Send to Family
+    # -------------------------------------------------------------------
 
     def update(
         self,
@@ -364,16 +413,20 @@ class Model:
         value: _X,
         represent: str,
         collection: str,
-        aspects: Optional[list[str]] = None,
+        aspects: list[str] | None = None,
     ):
         """Update the Model with a new value
 
-        Args:
-            name (str): Name of the value to be added
-            value (X): Value to be added
-            represent (str): Representation to which the value belongs
-            collection (str): Collection within the representation to which the value belongs
-            subset (bool, optional): If True, the value is not added to the Model's
+        :param name: Name of the value to be added
+        :type name: str
+        :param value: Value to be added
+        :type value: X
+        :param represent: Representation to which the value belongs
+        :type represent: str
+        :param collection: Collection within the representation to which the value belongs
+        :type collection: str
+        :param aspects: Aspects to be added to the value, defaults to None
+        :type aspects: list[str], optional
         """
 
         value.name = name
@@ -421,102 +474,10 @@ class Model:
                 if aspect.neg is not None:
                     setattr(value, aspect.neg.name, aspect.neg(value))
 
-    def __setattr__(self, name, value):
-
-        if isinstance(value, (str, dict, list, bool)) or value is None:
-            # if value is a string, dict, list or bool
-            # set the attribute to the value
-            super().__setattr__(name, value)
-            return
-
-        if isinstance(value, TemporalScales):
-            self.TemporalScales(value.discretizations, value.names)
-
-            return
-
-        if isinstance(value, Unit):
-            value.name = name
-            self.units.append(value)
-
-        # map to representation and collection
-        for cls, updates in self.update_map.items():
-            if isinstance(value, cls):
-                # for args in updates:
-                self.update(name, value, *updates)
-                break
-
-        # Special linkage instructions
-        if isinstance(value, Linkage):
-
-            self.space.sources.append(value.source)
-            self.space.sinks.append(value.sink)
-
-            if value.bi:
-                # if bidirectional, set the reverse linkage
-                # also ensures that all linakges go in one direction only
-                rev = value.rev()
-                setattr(self, rev.name, rev)
-
-        super().__setattr__(name, value)
-
-    def __getattr__(self, name):
-
-        if name in self.default_components:
-            component = self.default_components[name]()
-            return component
-
-        if name in self.dimension_map:
-            dimension = getattr(self, self.dimension_map[name])
-            collection = getattr(dimension, name)
-            setattr(self, name, collection)
-            return collection
-
-        if name in self.program_collections:
-            collection = getattr(self.program, name)
-            setattr(self, name, collection)
-            return collection
-
-        # Only called when attribute does not exist
-        if name in self._attr_map:
-            # if attribute has been called before
-            # the next time the created attribute is returned
-            return self._attr_map[name]
-
-        if name in self.cookbook:
-            recipe = self.cookbook[name]
-
-            aspect = recipe.kind(**recipe.args)
-            setattr(self, name, aspect)
-
-            return aspect
-
-        if name in self.attr_map:
-            # if this is an attribute being called for the first time
-            recipe = self.attr_map[name]
-            aspect_name = list(recipe.keys())[0]
-
-            if aspect_name in self.added:
-                # if same aspect is called by a different name
-                return getattr(self, aspect_name)
-
-            # these are the arguments for the aspect
-            recipe = recipe[aspect_name]
-            aspect = recipe.kind(**recipe.args)
-
-            setattr(self, aspect_name, aspect)
-
-            self._attr_map[name] = aspect
-
-            return aspect
-
-        raise AttributeError(
-            f"{self} has no '{name}'",
-        )
-
-    def aliases(self, *names: str, to: str):
-        """Set aspect aliases"""
-        _add = dict.fromkeys(list(names), {to: self.cookbook[to]})
-        self.attr_map = {**self.attr_map, **_add}
+    # -------------------------------------------------------------------
+    # * Birthing Procedures and Setting Aliases
+    # -------------------------------------------------------------------
+    # These take an action on attribute inputs
 
     def Recipe(
         self,
@@ -524,36 +485,59 @@ class Model:
         kind: Type[Aspect],
         primary_type: tuple[Type[_Component]] | Type[_Component],
         label: str = "",
+        latex: str = "",
         add: str = "",
         add_latex: str = "",
-        add_kind: Type[Aspect] = None,
+        add_kind: Type[Aspect] | None = None,
         sub: str = "",
         sub_latex: str = "",
-        sub_kind: Type[Aspect] = None,
+        sub_kind: Type[Aspect] | None = None,
         neg: str = "",
         neg_latex: str = "",
         neg_label: str = "",
         bound: str = "",
         ispos: bool = True,
         nn: bool = True,
-        latex: str = None,
     ):
         """Creates a Recipe and updates recipes
 
-        Args:
-            name (str): name of the aspect
-            kind (Type[Aspect]): type of the aspect
-            primary_type (tuple[Type[_Component]] | Type[_Component]): type of primary component
-            label (str, optional): label for the aspect. Defaults to ''.
-            add (str, optional): add control variable. Defaults to ''.
-            sub (str, optional): sub control variable. Defaults to ''.
-            neg (str, optional): name of the negative aspect. Defaults to ''.
-            ispos (bool, optional): whether the aspect is positive. Defaults to True.
-            nn (bool, optional): whether the aspect is non-negative. Defaults to True.
-            latex (str, optional): LaTeX representation for the aspect. Defaults to None.
+        :param name: Name of the aspect
+        :type name: str
+        :param kind: type of the aspect
+        :type kind: Type[Aspect]
+        :param primary_type: type of primary component
+        :type primary_type: tuple[Type[_Component]] | Type[_Component]
+        :param label: label for the aspect. Defaults to ''.
+        :type label: str, optional
+        :param latex: LaTeX representation for the aspect. Defaults to None.
+        :type latex: str, optional
+        :param add: add control variable. Defaults to ''.
+        :type add: str, optional
+        :param add_latex: LaTeX representation for the add aspect. Defaults to ''.
+        :type add_latex: str, optional
+        :param add_kind: type of the add aspect. Defaults to None.
+        :type add_kind: Type[Aspect], optional
+        :param sub: sub control variable. Defaults to ''.
+        :type sub: str, optional
+        :param sub_latex: LaTeX representation for the sub aspect. Defaults to ''.
+        :type sub_latex: str, optional
+        :param sub_kind: type of the sub aspect. Defaults to None.
+        :type sub_kind: Type[Aspect], optional
+        :param neg: name of the negative aspect. Defaults to ''.
+        :type neg: str, optional
+        :param neg_latex: LaTeX representation for the negative aspect. Defaults to ''.
+        :type neg_latex: str, optional
+        :param neg_label: label for the negative aspect. Defaults to ''.
+        :type neg_label: str, optional
+        :param bound: name of the bound aspect. Defaults to ''.
+        :type bound: str, optional
+        :param ispos: whether the aspect is positive. Defaults to True.
+        :type ispos: bool, optional
+        :param nn: whether the aspect is non-negative. Defaults to True.
+        :type nn: bool, optional
         """
         if name in self.cookbook:
-            print(f"--- Warning: Overriding existing recipe ---{name}")
+            logger.warning("Overriding existing recipe: %s", name)
 
         self.cookbook[name] = Recipe(
             name=name,
@@ -609,12 +593,61 @@ class Model:
             )
             self.cookbook[neg] = neg_recipe
 
-    # -----------------------------------------------------
-    #              Birth Component
-    # -----------------------------------------------------
+    def alias(self, *names: str, of: str):
+        """Set aspect aliases
+
+        :param names: Names of the aliases
+        :type names: str
+        :param to: Name of the aspect to which the aliases point
+        :type to: str
+        """
+        _add = dict.fromkeys(list(names), {of: self.cookbook[of]})
+        self.directory = {**self.directory, **_add}
+
+    def Instruction(
+        self,
+        name: str,
+        kind: Type[_Component],
+        deciding: str,
+        depending: str,
+        default: str,
+        label: str = "",
+    ):
+        """Creates an Instruction and updates the manual
+
+        :param deciding: Name of the deciding aspect
+        :type deciding: str
+        :param depending: Name of the depending aspect
+        :type depending: str
+        :param default: Name of the default component
+        :type default: str
+        :param label: Label for the parameter. Defaults to ''.
+        :type label: str, optional
+        :param citations: Captions for the parameter. Defaults to ''.
+        :type citations: str, optional
+        """
+
+        self.manual[name] = Instruction(
+            name=name,
+            kind=kind,
+            deciding=deciding,
+            depending=depending,
+            default=default,
+            label=label,
+        )
+
+    # ------------------------------------------------------------------------
+    # * Easy Birthing of Components
+    # ------------------------------------------------------------------------
 
     def declare(self, what: Type[_X], names: list[str]):
-        """Declares objects conveniently"""
+        """Declares objects conveniently
+
+        :param what: Type of object to be created
+        :type what: Type[X]
+        :param names: Names of the objects to be created
+        :type names: list[str]
+        """
         for i in names:
             setattr(self, i, what())
 
@@ -622,10 +655,21 @@ class Model:
         self,
         source: Location,
         sink: Location,
-        dist: float | Unit = None,
+        dist: float | Unit = 0,
         bi: bool = False,
     ):
-        """Link two Locations"""
+        """
+        Link two Locations
+
+        :param source: Source Location
+        :type source: Location
+        :param sink: Sink Location
+        :type sink: Location
+        :param dist: Distance between the Locations. Defaults to None.
+        :type dist: float | Unit, optional
+        :param bi: Whether the linkage is bidirectional. Defaults to False.
+        :type bi: bool, optional
+        """
         if source - sink:
             # if source and sink are already linked
             raise ValueError(
@@ -662,75 +706,63 @@ class Model:
             setattr(self, name, disc * root)
             root = self.periods[-1]
 
+    # ------------------------------------------------------------------------
+    # * Illustrations from Different Perspectives
+    # ------------------------------------------------------------------------
+
+    # * I Mathematical
     def show(
         self,
         descriptive: bool = False,
         categorical: bool = True,
-        category: str = None,
+        category: str = "",
     ):
-        """Pretty print the Model"""
+        """
+        Pretty print the Model
+
+        :param descriptive: Whether to show descriptive information. Defaults to False.
+        :type descriptive: bool, optional
+        :param categorical: Whether to group by category. Defaults to True.
+        :type categorical: bool, optional
+        :param category: If provided, shows only this category. Defaults to None.
+        :type category: str, optional
+        """
         self.program.show(descriptive, categorical=categorical, category=category)
 
-    def sol(self, n_sol: int = 0, slack: bool = True, compare: bool = False):
-        """Solution"""
-        return self.program.sol(n_sol=n_sol, slack=slack, compare=compare)
+    # * II Graphical
+    def draw(self, variable: Aspect | Sample | None = None, n_sol: int = 0):
+        """
+        Draw the solution for a variable
 
-    def eval(
-        self, *theta_vals: float, n_sol: int = 0, roundoff: int = 4
-    ) -> list[float]:
-        """Evaluate the objective function at given theta values"""
-        return self.program.eval(*theta_vals, n_sol=n_sol, roundoff=roundoff)
+        :param variable: Variable to draw. Defaults to None.
+        :type variable: Aspect | Sample | None, optional
+        :param n_sol: Solution number to draw. Defaults to 0.
+        :type n_sol: int, optional
 
-    def save(self, as_type: str = "dill"):
-        """Save the Model to a file"""
-        if as_type == "dill":
-            with open(self.name + ".energia", "wb") as f:
-                dump(self.solution, f)
-        else:
-            raise ValueError(f"Unknown type {as_type} for saving the model")
-
-    def draw(self, variable: Aspect | Sample = None, n_sol: int = 0):
-        """Draw the solution for a variable"""
+        """
         if variable is not None:
             self.program.draw(variable=variable.V(), n_sol=n_sol)
 
         else:
             self.program.draw(n_sol=n_sol)
 
-    def default_periods(self, size: int = 0) -> Periods:
-        """Return a default period"""
+    # * III Solution
+    def output(self, n_sol: int = 0, slack: bool = True, compare: bool = False):
+        """Solution"""
+        return self.program.output(n_sol=n_sol, slack=slack, compare=compare)
 
-        if size:
-            # if size is passed,
-            # make a new temporal scale
-            new_period = Periods(f"Time/{size}", periods=size, of=self.horizon)
-            setattr(self, f"t{len(self.time.periods)}", new_period)
-
-            # return the newly created period
-            return self.time.periods[-1]
-
-        # or create a default period
-
-        self.t0 = Periods("Time")
-        return self.t0
-
-    def default_location(self) -> Location:
-        """Return a default location"""
-        self.l = Location(label="l")
-        return self.l
-
-    def default_currency(self) -> Currency:
-        """Return a default currency"""
-        if self.currencies:
-            return self.currencies[0]
-
-        self.money = Currency(label="$")
-        return self.money
-
+    # ------------------------------------------------------------------------
+    # * Solution Prep, Generation, and  Handling
+    # ------------------------------------------------------------------------
     def locate(self, *operations: Process | Storage):
-        """Locate operations in the network"""
+        """Locate operations in the network
+
+        :param operations: Operations to locate
+        :type operations: Process | Storage
+        """
         self.network.locate(*operations)
 
+    # * Optimization
     def solve(
         self,
         using: Literal[
@@ -747,11 +779,210 @@ class Model:
             "geometric_parallel_exp",
         ] = "combinatorial",
     ):
-        """Solve the multiparametric program"""
+        """
+        Solve the multiparametric program
+
+        :param using: The solving method to use. Defaults to "combinatorial".
+        :type using: Literal[
+            "combinatorial",
+            "combinatorial_parallel",
+            "combinatorial_parallel_exp",
+            "graph",
+            "graph_exp",
+            "graph_parallel",
+            "graph_parallel_exp",
+            "combinatorial_graph",
+            "geometric",
+            "geometric_parallel",
+            "geometric_parallel_exp",
+        ], optional
+        """
 
         self.program.solve(using=using)
 
-    def __call__(self, *funcs: Callable[Self]):
+    # * Solution evaluation
+    def eval(
+        self, *theta_vals: float, n_sol: int = 0, roundoff: int = 4
+    ) -> list[float]:
+        """
+        Evaluate the objective function at given theta values
+
+        :param theta_vals: values for the parametric variables
+        :type theta_vals: float
+        :param n_sol: solution number to evaluate, defaults to 0
+        :type n_sol: int, optional
+        :param roundoff: number of decimal places to round off to, defaults to 4
+        :type roundoff: int, optional
+
+        :return: list of objective function values
+        :rtype: list[float]
+        """
+        return self.program.eval(*theta_vals, n_sol=n_sol, roundoff=roundoff)
+
+    # * Saving
+    def save(self, as_type: str = "dill"):
+        """Save the Model to a file"""
+        if as_type == "dill":
+            with open(self.name + ".energia", "wb") as f:
+                dump(self.solution, f)
+        else:
+            raise ValueError(f"Unknown type {as_type} for saving the model")
+
+    # ------------------------------------------------------------------------
+    # * Default Components
+    # ------------------------------------------------------------------------
+
+    def _t0(self, size: int = 0) -> Periods:
+        """Return a default period
+
+        :param size: Size of the period. Defaults to 0.
+        :type size: int, optional
+
+        :return: Periods object
+        :rtype: Periods
+        """
+
+        if size:
+            # if size is passed,
+            # make a new temporal scale
+            new_period = Periods(f"Time/{size}", periods=size, of=self.horizon)
+            setattr(self, f"t{len(self.time.periods)}", new_period)
+
+            # return the newly created period
+            return self.time.periods[-1]
+
+        # or create a default period
+
+        self.t0 = Periods("Time")
+        return self.t0
+
+    def _l0(self) -> Location:
+        """Return a default location"""
+        self.l0 = Location(label="l")
+        return self.l0
+
+    def _cash(self) -> Currency:
+        """Return a default currency"""
+        if self.currencies:
+            return self.currencies[0]
+        self.cash = Currency(label="$")
+        return self.cash
+
+    # -------------------------------------------------------------------
+    # * Attribute Setting and Getting
+    # -------------------------------------------------------------------
+
+    def __setattr__(self, name, value):
+
+        if isinstance(value, (str, dict, list, bool)) or value is None:
+            # if value is a string, dict, list or bool
+            # set the attribute to the value
+            super().__setattr__(name, value)
+            return
+
+        if isinstance(value, TemporalScales):
+            self.TemporalScales(value.discretizations, value.names)
+
+            return
+
+        if isinstance(value, Unit):
+            value.name = name
+            self.units.append(value)
+
+        # map to representation and collection
+        for cls, updates in self.familytree.items():
+            if isinstance(value, cls):
+                # for args in updates:
+                self.update(name, value, *updates)
+                break
+
+        # Special linkage instructions
+        if isinstance(value, Linkage):
+
+            self.space.sources.append(value.source)
+            self.space.sinks.append(value.sink)
+
+            if value.bi:
+                # if bidirectional, set the reverse linkage
+                # also ensures that all linakges go in one direction only
+                rev = value.rev()
+                setattr(self, rev.name, rev)
+
+        super().__setattr__(name, value)
+
+    def __getattr__(self, name):
+        # Only called when attribute does not exist
+
+        # if something like t, t0 is called
+        # just return a default component
+        # t/t0, l/l0, cash, money
+        # this will not intefere with the setting of
+        # attributes what this name
+        if name in self.default_components:
+            component = self.default_components[name]()
+            return component
+
+        # Inherits collections based on ancestry
+        if name in self.ancestry:
+            dimension = getattr(self, self.ancestry[name])
+            collection = getattr(dimension, name)
+            setattr(self, name, collection)
+            return collection
+
+        # Program attributes
+        if name in self.program_attrs:
+            collection = getattr(self.program, name)
+            setattr(self, name, collection)
+            return collection
+
+        # properties from dimensions and representations
+        if name in self.properties:
+            return getattr(self.properties[name], name)
+
+        # already declare and mapped to aspect
+        if name in self.registry:
+            return self.registry[name]
+
+        if name in self.manual:
+            return self.manual[name]
+
+        # Recipe for defining aspects
+        if name in self.cookbook:
+            recipe = self.cookbook[name]
+
+            aspect = recipe.kind(**recipe.args)
+            setattr(self, name, aspect)
+
+            return aspect
+        # maps many attribute names to aspects
+        if name in self.directory:
+            # if this is an attribute being called for the first time
+            recipe = self.directory[name]
+            aspect_name = list(recipe.keys())[0]
+
+            if aspect_name in self.added:
+                # if same aspect is called by a different name
+                return getattr(self, aspect_name)
+
+            # these are the arguments for the aspect
+            recipe = recipe[aspect_name]
+            aspect = recipe.kind(**recipe.args)
+
+            setattr(self, aspect_name, aspect)
+
+            self.registry[name] = aspect
+
+            return aspect
+
+        raise AttributeError(
+            f"{self} has no '{name}'",
+        )
+
+    # ---------------------------------------------------------------
+    # * Call to Initialize using functions and Hashing
+    # ---------------------------------------------------------------
+
+    def __call__(self, *funcs: Callable[[Self]]):
         """Set functions on the model
 
         These can include default units
@@ -760,10 +991,6 @@ class Model:
 
         for f in funcs:
             f(self)
-
-    # -----------------------------------------------------
-    #                    Hashing
-    # -----------------------------------------------------
 
     def __str__(self):
         return self.name

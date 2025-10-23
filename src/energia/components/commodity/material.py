@@ -1,13 +1,18 @@
 """Material"""
 
-from dataclasses import dataclass
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from .resource import Resource
 
+if TYPE_CHECKING:
+    from ..measure.unit import Unit
 
-@dataclass
+
 class Material(Resource):
-    """Materials are Resources, that are used to set up Operations
+    """
+    Materials are Resources, that are used to set up Operations
 
     :param label: Label of the commodity, used for plotting. Defaults to None.
     :type label: str, optional
@@ -34,5 +39,11 @@ class Material(Resource):
     :vartype insitu: bool, optional
     """
 
-    def __post_init__(self):
-        Resource.__post_init__(self)
+    def __init__(
+        self,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
+        Resource.__init__(self, basis=basis, label=label, citations=citations, **kwargs)

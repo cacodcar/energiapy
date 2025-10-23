@@ -1,13 +1,14 @@
 """Unit"""
 
 from operator import is_
-from typing import Optional, Self
+from typing import Self
 
 from ..._core._name import _Name
 
 
 class Unit(_Name):
-    """Unit of measure for a quantity provided as input to a component
+    """
+    Unit of measure for a quantity provided as input to a component
 
     :param label: Label of the component, used for plotting. Defaults to None.
     :type label: str, optional
@@ -22,20 +23,10 @@ class Unit(_Name):
 
     def __init__(
         self,
-        basis: Optional[Self] = None,
-        times: Optional[int | float] = None,
-        label: Optional[str] = None,
+        basis: Self | None = None,
+        times: int | float | None = None,
+        label: str = "",
     ):
-        """
-        Args:
-            basis (Unit): Basis of the unit, if defined based on another Unit. Defaults to None.
-            times (int | float): How many times the basis is contained in the unit. Defaults to None.
-            label (str): Label of the unit. Defaults to None.
-            name (str): Name of the unit. Defaults to ''.
-
-        Note:
-            - name is set when the component is made a Model attribute.
-        """
         # A basis can itself be measured using another basis
         self.basis = basis
         # How many times that basis is self?
@@ -44,10 +35,11 @@ class Unit(_Name):
         _Name.__init__(self, label)
 
     def howmany(self, basis: Self):
-        """How many times is this basis contained in the other basis
+        """
+        How many times is this basis contained in the other basis
 
-        Args:
-            basis (Unit): Basis to compare with.
+        :param basis: Basis to compare with.
+        :type basis: Unit
         """
         # if other Unit is basis of self
         # return the times of self

@@ -2,80 +2,100 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING, Self
 
-from ..._core._name import _Name
+from ..._core._hash import _Hash
 from ...components.temporal.lag import Lag
 from ...components.temporal.modes import Modes
 
 if TYPE_CHECKING:
     from gana.block.program import Prg
 
+    from ..._core._operation import _Operation
     from ...components.commodity.resource import Resource
-    from ...components.operation._operation import _Operation
     from ...components.temporal.periods import Periods
     from ...represent.model import Model
     from ..variables.sample import Sample
 
 
-@dataclass
-class Conversion(_Name):
-    """Processes convert one Resource to another Resource
-
+class Conversion(_Hash):
+    """
+    Processes convert one Resource to another Resource
     Conversion provides the conversion of resources
 
-    Attributes:
-        label (str): Label of the component, used for plotting. Defaults to None.
-        process (Process): Process that converts Resources. Defaults to None.
-        storage (Storage): Storage that stores Resources. Defaults to None.
-        resource (Resource): Resource that is balanced. Defaults to None.
-        name (str): generated as η(process).
-        operation (Process | Storage): Process or Storage that serves as primary spatial index.
-        base (Resource): Basis Resource, usually has a value 1 in the conversion matrix, set using __call__. Defaults to None.
-        conversion (dict[Resource : int | float]): {Resources: conversion}. Defaults to {}, set using __eq__.
-        lag (Lag): Temporal lag (processing time) for conversion, set using __getitem__. Defaults to None.
+    :param resource: Resource that is balanced
+    :type resource: Resource
+    :param operation: Process or Storage that serves as primary spatial index
+    :type operation: Process | Storage
+    :param bind: Sample that is used to define the conversion
+    :type bind: Sample
 
-    Raises:
-        TypeError: If __getitem__ input is not of type Lag.
+    :ivar name: Name of the component, generated based on the operation.
+    :vartype name: str
+    :ivar base: Basis Resource, usually has a value 1 in the conversion matrix, set using __call__. Defaults to None.
+    :vartype base: Resource
+    :ivar conversion: {Resources: conversion}. Defaults to {}, set using __eq__.
+    :vartype conversion: dict[Resource : int | float]
+    :ivar lag: Temporal lag (processing time) for conversion, set using __getitem__.
+    :vartype lag: Lag
+    :ivar periods: Periods over which the conversion is defined. Defaults to None.
+    :vartype periods: Periods
 
-    Note:
+    :raises ValueError: If conversion lists are of inconsistent lengths.
+
+    .. note::
         - name and operation are generated post init
         - base (__call__), conversion (__eq__), lag (__getitem__) are defined as the program is built
         - Storage contains two processes (charge and discharge), hence is provided separately
 
     """
 
-    resource: Resource = None
-    operation: _Operation = None
-    bind: Sample = None
+    def __init__(
+        self,
+        basis: Resource | None = None,
+        operation: _Operation | None = None,
+        bind: Sample | None = None,
+        hold: int | float | None = None,
+    ):
 
-    def __post_init__(self):
-        self.name = f"η({self.operation})"
-        self.base: Resource = None
-        self.conversion: dict[Resource, int | float | list[int | float]] = {}
-        self.lag: Lag = None
-        self.periods: Periods = None
+        self.basis = basis
+        self.operation = operation
+        self.bind = bind
+
+        # value to hold, will be applied later
+        # occurs when Conversion/Resource == parameter is used
+        # the parameter is held until a dummy resource is created
+        self.hold = hold
+
+        self._basis: Resource | None = None
+        self.lag: Lag | None = None
+        self.periods: Periods | None = None
 
         # if piece wise linear conversion is provided
         self.pwl: bool = False
 
         # this is holds a mode for the conversion to be appended to
-        self._mode: int | str = None
+        self._mode: int | str | None = None
 
         # modes if PWL conversion is defined
         # or if multiple modes are defined
-        self._modes: Modes = None
+        self._modes: Modes | None = None
 
         # if the keys are converted into Modes
         self.modes_set: bool = False
+        self.balance: dict[Resource, int | float | list[int | float]] = {}
+
+    @property
+    def name(self) -> str:
+        """Name"""
+        return f"η({self.operation}, {self.basis or self._basis})"
 
     @property
     def modes(self) -> Modes:
         """Modes of the operation"""
         if self._modes is None:
-            n_modes = len(self.conversion)
+            n_modes = len(self)
             modes_name = f"bin{len(self.model.modes)}"
 
             setattr(self.model, modes_name, Modes(n_modes=n_modes, bind=self.bind))
@@ -89,9 +109,9 @@ class Conversion(_Name):
         """energia Model"""
 
         if self.pwl:
-            _conversion = self.conversion[next(iter(self.conversion))]
+            _conversion = self.balance[next(iter(self.balance))]
         else:
-            _conversion = self.conversion
+            _conversion = self.balance
 
         return next((i.model for i in _conversion), None)
 
@@ -101,7 +121,8 @@ class Conversion(_Name):
         return self.operation.program
 
     def balancer(self):
-        """Checks if there is a list in the conversion
+        """
+        Checks if there is a list in the conversion
         If yes, tries to make everything consistent
         """
 
@@ -136,14 +157,14 @@ class Conversion(_Name):
             return conversion
 
         if self.pwl:
-            for mode, conv in self.conversion.items():
-                self.conversion[mode] = _balancer(conv)
+            for mode, conv in self.items():
+                self.balance[mode] = _balancer(conv)
 
-            if isinstance(next(iter(self.conversion)), Modes):
+            if isinstance(next(iter(self.balance)), Modes):
                 self.modes_set = True
 
         else:
-            self.conversion = _balancer(self.conversion)
+            self.balance = _balancer(self.balance)
 
     def __getitem__(self, mode: int | str) -> Self:
         """Used to define mode based conversions"""
@@ -157,15 +178,15 @@ class Conversion(_Name):
             # In this case the associated conversion is not 1
             # especially useful if Process is scaled to consumption of a resource
             # i.e. basis = -1*Resource
-            self.conversion = {**self.conversion, **basis.conversion}
-            self.base = next(iter(self.conversion))
+            self.balance = {**self.balance, **basis.balance}
+            self.basis = next(iter(self.balance))
 
         else:
             # if a Resource is provided (Resource)
             # implies that the conversion is 1
             # i.e the Process is scaled to one unit of this Resource produced
-            self.base = basis
-            self.conversion = {basis: 1.0, **self.conversion}
+            self._basis = basis
+            self.balance = {basis: 1.0, **self.balance}
 
         if lag:
             self.lag = lag
@@ -173,13 +194,12 @@ class Conversion(_Name):
         return self
 
     def __eq__(self, other: Conversion | int | float | dict[int | float, Conversion]):
-        # cons = []
 
         if isinstance(other, (int, float)):
             # this is used for inventory conversion
             # when not other resource besides the one being inventoried is involved
 
-            self.conversion = {**self.conversion, self.resource: -1.0 / float(other)}
+            self.balance = {**self.balance, self.basis: -1.0 / float(other)}
 
         elif isinstance(other, dict):
 
@@ -193,51 +213,47 @@ class Conversion(_Name):
 
             # this is when there is a proper resource conversion
             # -20*res1 = 10*res2 for example
-            self.conversion = {
-                k: {**self.conversion, **v.conversion} for k, v in other.items()
-            }
+            self.balance = {k: {**self.balance, **v.balance} for k, v in other.items()}
             self.pwl = True
 
         # this would be a Conversion or Resource
         elif self._mode is not None:
-            self.conversion[self._mode] = other.conversion
+            self.balance[self._mode] = other.balance
             if not self.pwl:
                 self.pwl = True
             self._mode = None
         else:
-
-            self.conversion: dict[Resource, int | float] = {
-                **self.conversion,
-                **other.conversion,
+            self.balance: dict[Resource, int | float] = {
+                **self.balance,
+                **other.balance,
             }
 
-        self.model.convmatrix[self.operation] = self.conversion
+        self.model.convmatrix[self.operation] = self.balance
+        return self
 
     # these update the conversion of the resource (self.conversion)
     def __add__(self, other: Conversion) -> Self:
         if isinstance(other, Conversion):
-            self.conversion = {**self.conversion, **other.conversion}
+            self.balance = {**self.balance, **other.balance}
             return self
-        self.conversion = {**self.conversion, other: 1}
+        self.balance = {**self.balance, other: 1}
         return self
 
     def __sub__(self, other: Conversion) -> Self:
         if isinstance(other, Conversion):
-            self.conversion = {
-                **self.conversion,
-                **{res: -1 * par for res, par in other.conversion.items()},
+            self.balance = {
+                **self.balance,
+                **{res: -1 * par for res, par in other.items()},
             }
             return self
-        self.conversion = {**self.conversion, other: -1}
+        self.balance = {**self.balance, other: -1}
         return self
 
     def __mul__(self, times: int | float | list) -> Self:
         if isinstance(times, list):
-            self.conversion = {
-                res: [par * i for i in times] for res, par in self.conversion.items()
-            }
+            self.balance = {res: [par * i for i in times] for res, par in self.items()}
         else:
-            self.conversion = {res: par * times for res, par in self.conversion.items()}
+            self.balance = {res: par * times for res, par in self.items()}
         return self
 
     def __rmul__(self, times) -> Self:
@@ -246,3 +262,11 @@ class Conversion(_Name):
     def __truediv__(self, periods: Periods) -> Self:
         self.periods = periods
         return self
+
+    def items(self):
+        """Items of the conversion balance"""
+        return self.balance.items()
+
+    def __len__(self):
+        """Length of the conversion balance"""
+        return len(self.balance)

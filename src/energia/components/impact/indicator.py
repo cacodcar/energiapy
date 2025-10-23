@@ -2,25 +2,25 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..._core._component import _Component
 
 if TYPE_CHECKING:
-    from ...dimensions.consequence import Consequence
+    from ...dimensions.impact import Impact
+    from ..measure.unit import Unit
 
 
-@dataclass
 class Indicator(_Component):
-    """Impact Indicator
+    """
+    Impact Indicator
 
     :param basis: Unit basis of the component. Defaults to None.
     :type basis: Unit, optional
     :param label: An optional label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: An optional citation or description for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: An optional citation or description for the component. Defaults to None.
+    :type citations: str | list[str] | dict[str, str | list[str]], optional
 
     :ivar model: The model to which the component belongs.
     :vartype model: Model
@@ -35,10 +35,15 @@ class Indicator(_Component):
     :vartype aspects: dict[Aspect, list[Domain]]
     """
 
-    def __post_init__(self):
-        _Component.__post_init__(self)
+    def __init__(
+        self, basis: Unit | None = None, label: str = "", citations: str = "", **kwargs
+    ):
+
+        _Component.__init__(
+            self, basis=basis, label=label, citations=citations, **kwargs
+        )
 
     @property
-    def consequence(self) -> Consequence:
+    def consequence(self) -> Impact:
         """Impact object"""
-        return self.model.consequence
+        return self.model.impact

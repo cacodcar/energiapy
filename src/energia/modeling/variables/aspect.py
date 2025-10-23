@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional, Self, Type
+from typing import TYPE_CHECKING, Self, Type
 
 import matplotlib.pyplot as plt
 from matplotlib import rc
 
-from ...components.commodity._commodity import _Commodity
-from ...components.game.couple import Couple
+from ..._core._commodity import _Commodity
+from ...components.game.couple import Interact
 from ...components.game.player import Player
 from ...components.impact.indicator import Indicator
 from ...components.operation.process import Process
@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     from ..._core._component import _Component
     from ..._core._x import _X
     from ...dimensions.problem import Problem
-    from ...modeling.indices.domain import Domain
     from ...represent.model import Model
 
 
@@ -82,8 +81,7 @@ class Aspect:
     :ivar domains: List of domains associated with the Aspect.
     :vartype domains: list[Domain]
 
-    raises ValueError:
-        - If `primary_type` is not defined.
+    :raises ValueError: If `primary_type` is not defined.
     """
 
     primary_type: Type[_Component] | tuple[Type[_Component], ...]
@@ -92,14 +90,14 @@ class Aspect:
     neg: str = ""
     latex: str = ""
     bound: str = ""
-    label: Optional[str] = None
+    label: str = ""
 
     def __post_init__(self):
         # will be set when added to model
         self.name: str = ""
 
         # name of the decision
-        self.model: Optional[Model] = None
+        self.model: Model | None = None
 
         if self.label:
             if self.nn:
@@ -133,7 +131,7 @@ class Aspect:
         self._maps_report: bool = False
 
         # reporting variable
-        self.reporting: Optional[Var] = None
+        self.reporting: Var | None = None
 
         self.constraints: list[str] = []
 
@@ -228,13 +226,14 @@ class Aspect:
         """Dispositions dict"""
         return self.model.dispositions[self]
 
-    def aliases(self, *names: str):
-        """Create aliases for the decision
-
-        Args:
-            names (str): Names of the aliases
+    def alias(self, *names: str):
         """
-        self.model.aliases(*names, to=self.name)
+        Create aliases for the decision
+
+        :param names: Names of the aliases
+        :type names: str
+        """
+        self.model.alias(*names, of=self.name)
 
     def update(self, domain: Domain, reporting: bool = False):
         """Each inherited object has their own"""
@@ -244,18 +243,30 @@ class Aspect:
         for c in self.cons:
             c.show(descriptive)
 
-    def sol(
+    def output(
         self,
         n_sol: int = 0,
         aslist: bool = False,
+        asdict: bool = False,
         compare: bool = False,
-    ) -> list[float] | None:
-        """Solution
-        Args:
-            aslist (bool, optional): Returns values taken as list. Defaults to False.
+    ) -> list[float] | dict[tuple[Idx, ...], float] | None:
+        """
+        Solution
+
+        :param n_sol: Solution number. Defaults to 0.
+        :type n_sol: int, optional
+        :param compare: Compares the solution with the previous one. Defaults to False.
+        :type compare: bool, optional
+        :param asdict (bool, optional): Returns values taken as dict. Defaults to False.
+        :type asdict: bool, optional
+        :param aslist (bool, optional): Returns values taken as list. Defaults to False.
+        :type aslist: bool, optional
+
+        :return: List of values taken by the decision.
+        :rtype: list[float] | None
         """
         var: Var = getattr(self.program, self.name)
-        return var.sol(n_sol, aslist, compare=compare)
+        return var.output(n_sol, aslist=aslist, asdict=asdict, compare=compare)
 
     def gettime(self, *index) -> list[Periods]:
         """Finds the sparsest time scale in the domains"""
@@ -297,7 +308,7 @@ class Aspect:
         if not z:
             ax.plot(
                 [i.name for i in x.I._],
-                self.V(*index).sol(True),
+                self.V(*index).output(True),
                 linewidth=linewidth,
                 color=color,
             )
@@ -306,7 +317,7 @@ class Aspect:
                 index = [i.I for i in (z_,) + y + (x,)]
                 ax.plot(
                     [i.name for i in x.I._],
-                    self.V(*index).sol(True),
+                    self.V(*index).output(True),
                     linewidth=linewidth,
                     label=z_.label if z_.label else z_.name,
                 )
@@ -339,7 +350,7 @@ class Aspect:
         if isinstance(other, Aspect):
             return self.name == other.name
 
-    def __call__(self, *index: _X, domain: Domain = None):
+    def __call__(self, *index: _X, domain: Domain | None = None):
 
         if not domain:
 
@@ -367,25 +378,11 @@ class Aspect:
                 Storage: ("storage", None, True),
                 Transport: ("transport", None, True),
                 Player: ("player", None, False),
-                Couple: ("couple", None, False),
+                Interact: ("couple", None, False),
                 Indicator: ("indicator", None, False),
                 Modes: ("modes", None, False),
                 _Commodity: ("commodity", None, True),
             }
-            # (
-            #     indicator,
-            #     commodity,
-            #     player,
-            #     process,
-            #     storage,
-            #     transport,
-            #     period,
-            #     couple,
-            #     location,
-            #     linkage,
-            #     lag,
-            #     modes,
-            # ) = (None for _ in range(12))
 
             binds: list[Sample] = []
             timed, spaced = False, False
@@ -445,3 +442,8 @@ class Aspect:
     def __init_subclass__(cls):
         cls.__repr__ = Aspect.__repr__
         cls.__hash__ = Aspect.__hash__
+
+    def __iter__(self):
+        """Iterate over domains"""
+        for d in self.domains:
+            yield self(domain=d)

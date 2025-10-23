@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import time as keep_time
 from typing import TYPE_CHECKING
 
 from ...components.temporal.modes import Modes
 from ...utils.math import normalize
+
+logger = logging.getLogger("energia")
 
 if TYPE_CHECKING:
     from gana.sets.constraint import C
@@ -21,8 +24,8 @@ class Bind:
 
     :param sample: The sample variable to bind
     :type sample: Sample
-    :param bound: The bound value
-    :type bound: float | list[float] | dict[float, float] | tuple[float, float] | list[tuple[float, float]]
+    :param parameter: The parameter bound
+    :type parameter: float | list[float] | dict[float, float] | tuple[float, float] | list[tuple[float, float]]
     :param leq: If True, the sample is constrained to be less than or equal to the bound
     :type leq: bool
     :param geq: If True, the sample is constrained to be greater than or equal to the bound
@@ -31,6 +34,21 @@ class Bind:
     :type eq: bool
     :param forall: If provided, the constraint is applied for all elements in this list
     :type forall: list[_X | _Component] | None
+
+    :ivar model: The model to which the component belongs.
+    :vartype model: Model
+    :ivar nominal: The nominal value of the sample variable.
+    :vartype nominal: float | None
+    :ivar norm: If True, the sample variable is normalized.
+    :vartype norm: bool
+    :ivar domain: The domain of the sample.
+    :vartype domain: Domain
+    :ivar aspect: The aspect of the sample.
+    :vartype aspect: Aspect
+    :ivar report: If True, the sample variable is reported.
+    :vartype report: bool
+    :ivar program: The program to which the sample belongs.
+    :vartype program: Prg
     """
 
     def __init__(
@@ -142,37 +160,37 @@ class Bind:
                 for i in parameter
             ]
 
-            # --------- Get LHS
+            # ------Get LHS
             # lhs needs to be determined here
             # because V will be spaced and timed if not passed by user
             # .X(), .Vb() need time and space
 
         lhs = self.sample.V(parameter)
 
-        print(f"--- Binding {self.aspect} in domain {self.domain}")
+        logger.info("Binding %s in domain %s", self.aspect, self.domain)
 
         start = keep_time.time()
-        # --------- Get RHS
+        # ------Get RHS
 
         if self.aspect.bound is not None:
-            # --------- if variable bound
+            # ------if variable bound
             if self.report:
-                # --------- if variable bound and reported
+                # ------if variable bound and reported
                 # we do not want a bi-linear term
                 rhs = parameter * self.sample.X(parameter)
 
             else:
-                # --------- if just variable bound
+                # ------if just variable bound
                 rhs = parameter * self.sample.Vb()
 
         elif self.report or self.domain.modes is not None:
-            # --------- if  parameter bound and reported or has modes
+            # ------if  parameter bound and reported or has modes
             # create reporting variable write v <= p*x
             rhs = parameter * self.sample.X(parameter)
             self.aspect.update(self.domain, reporting=True)
 
         else:
-            # --------- if just parameter bound
+            # ------if just parameter bound
             rhs = parameter
 
         if self.leq:
@@ -232,4 +250,5 @@ class Bind:
         )
 
         end = keep_time.time()
-        print(f"    Completed in {end-start} seconds")
+        logger.info("\u2714 Completed in %s seconds", end - start)
+

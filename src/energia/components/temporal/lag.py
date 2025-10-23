@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import cached_property
 from operator import is_
 from typing import TYPE_CHECKING, Self
@@ -16,7 +15,6 @@ if TYPE_CHECKING:
     from .periods import Periods
 
 
-@dataclass
 class Lag(_Name):
     """
     A number of temporal Periods.
@@ -33,14 +31,15 @@ class Lag(_Name):
     :vartype domains: list[Domain]
 
     .. note::
-    - Name is generated post init.
-    - Domains are set as the program is built.
+        - Name is generated post init.
+        - Domains are set as the program is built.
     """
 
-    of: Periods = None
-    periods: int | float = 1
+    def __init__(self, of: Periods | None = None, periods: int | float = 1):
 
-    def __post_init__(self):
+        _Name.__init__(self, label="")
+        self.of = of
+        self.periods = periods
         self.name = f"-{self.periods}{self.of}"
         self.domains: list[Domain] = []
         self.constraints: list[str] = []

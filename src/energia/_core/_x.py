@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
+
+from ._hash import _Hash
 
 if TYPE_CHECKING:
     from gana import I as Idx
@@ -17,15 +18,14 @@ if TYPE_CHECKING:
     from ..represent.model import Model
 
 
-@dataclass
-class _X(ABC):
+class _X(ABC, _Hash):
     """
     A component (`x`) that functions as an index in the mathematical program.
 
     :param label: An optional label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: Citation for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: Citation for the component. Defaults to None.
+    :type citations: str, optional
 
     :ivar model: The model to which the component belongs.
     :vartype model: Model
@@ -38,18 +38,21 @@ class _X(ABC):
     :ivar aspects: Aspects associated with the component with domains.
     :vartype aspects: dict[Aspect, list[Domain]]
 
-    :note:
+    .. note:
         - `name` and `model` are set when the component
            is assigned as a Model attribute.
         - `constraints` and `domains` are populated as the program is built.
     """
 
-    label: Optional[str] = None
-    citations: Optional[str] = None
-
-    def __post_init__(self):
+    def __init__(
+        self,
+        label: str = "",
+        citations: str = "",
+    ):
+        self.label = label
+        self.citations = citations
         # the model
-        self.model: Model = None
+        self.model: Model | None = None
         # name is given by the model
         self.name: str = ""
 
@@ -63,6 +66,8 @@ class _X(ABC):
     @cached_property
     def program(self) -> Prg:
         """Mathematical program"""
+        if self.model is None:
+            raise ValueError(f"{type(self)} needs to be assign as Model attribute")
         return self.model.program
 
     @property
@@ -77,7 +82,7 @@ class _X(ABC):
     def I(self) -> Idx:
         """gana index set"""
 
-    def show(self, descriptive=False, category: Optional[str] = None):
+    def show(self, descriptive=False, category: str = ""):
         """Pretty print the component"""
         if category:
             for c in self.cons:
@@ -87,25 +92,3 @@ class _X(ABC):
         else:
             for c in self.cons:
                 c.show(descriptive)
-
-    # The reprs are set independently without inheriting _Name
-    # which allows a distinction between
-    # _Name and _Index when assigned to Model
-
-    # -----------------------------------------------------
-    #                    Hashing
-    # -----------------------------------------------------
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
-
-    def __hash__(self):
-        return hash(self.name)
-
-    def __init_subclass__(cls):
-        # the hashing will be inherited by the subclasses
-        cls.__repr__ = _X.__repr__
-        cls.__hash__ = _X.__hash__

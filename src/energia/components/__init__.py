@@ -5,18 +5,17 @@ from .commodity.emission import Emission
 from .commodity.land import Land
 from .commodity.material import Material
 from .commodity.resource import Resource
-from .game.couple import Couple
+from .game.couple import Interact
 from .game.player import Player
 from .impact.categories import Economic, Environ, Social
 from .measure.unit import Unit
 from .operation.process import Process
 from .operation.storage import Storage
 from .operation.transport import Transport
-from .spatial.location import Location
 from .spatial.linkage import Linkage
+from .spatial.location import Location
 from .temporal.periods import Periods
 from .temporal.scales import TemporalScales
-
 
 __all__ = [
     "Currency",
@@ -24,7 +23,7 @@ __all__ = [
     "Land",
     "Material",
     "Resource",
-    "Couple",
+    "Interact",
     "Player",
     "Economic",
     "Environ",

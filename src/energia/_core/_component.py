@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from gana import I
 
@@ -17,9 +16,10 @@ if TYPE_CHECKING:
     from ..dimensions.problem import Problem
     from ..dimensions.space import Space
     from ..dimensions.time import Time
+    from ..modeling.variables.sample import Sample
+    from ..represent.model import Model
 
 
-@dataclass
 class _Component(_X):
     """
     A component with a mathematical program (hence index in it) and
@@ -29,8 +29,8 @@ class _Component(_X):
     :type basis: Unit, optional
     :param label: Label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: Citation for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: Citation for the component. Defaults to None.
+    :type citations: str | list[str] | dict[str, str | list[str]], optional
 
     :ivar model: The model to which the component belongs.
     :vartype model: Model
@@ -43,19 +43,28 @@ class _Component(_X):
     :ivar aspects: Aspects associated with the component with domains.
     :vartype aspects: dict[Aspect, list[Domain]]
 
-    :note:
+    :raises AttributeError: If an invalid parameter is provided for the component type.
+
+    .. note:
         - `name`, `model` set when component assigned to Model attribute.
         - `constraints` and `domains` are populated as the program is built.
     """
 
-    # every component has a basis unit
-    basis: Optional[Unit] = None
+    def __init__(
+        self,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
 
-    def __post_init__(self):
+        self.basis = basis
+
+        self.parameters = kwargs
 
         # what differentiates a component from an index is that it has aspects
         # that we can control to adjust their states of existence
-        _X.__post_init__(self)
+        _X.__init__(self, label=label, citations=citations)
 
     @property
     def network(self) -> Location:
@@ -83,6 +92,104 @@ class _Component(_X):
         # the decision tree gives the component access to
         # the aspects of all other components
         return self.model.problem
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+
+        def _handle_norm(aspect: str, sample: Sample) -> Sample:
+            """Check if a nominal parameter is set for the aspect"""
+            # check if a request to normalize has been made
+            nominal = aspect + "_nominal"
+            nom = aspect + "_nom"
+            normalize = aspect + "_normalize"
+            norm = aspect + "_norm"
+
+            if normalize in self.parameters or norm in self.parameters:
+                _normalize = self.parameters.get(normalize, self.parameters.get(norm))
+            else:
+                # default behavior is to normalize
+                _normalize = False
+
+            # irrespective of normalize request, check if nominal value set
+            if nominal in self.parameters or nom in self.parameters:
+                # if nominal is given, normalize to it
+                return sample.prep(self.parameters[nominal], True)
+
+            if _normalize:
+                # if _normalize is True but no nominal provided
+                return sample.prep(norm=True)
+
+            return sample
+
+        def _handle_x(aspect: str, sample: Sample) -> Sample:
+            """Check if aspect is optional"""
+
+            if (
+                aspect + '_optional' in self.parameters
+                and self.parameters[aspect + '_optional']
+            ):
+                return sample.x
+            if (
+                aspect + '_report' in self.parameters
+                and self.parameters[aspect + '_report']
+            ):
+                return sample.x
+
+            return sample
+
+        # def _handle(aspect: str, sample: Sample) -> Sample:
+        #     """Handle both nominal and optional"""
+        #     return _handle_x(aspect, _handle_norm(aspect, sample))
+
+        # this handles the parameters being set on init
+        if name == "model" and value is not None:
+
+            model: Model = value
+
+            for attr, param in self.parameters.items():
+
+                if attr in model.manual:
+                    _ = getattr(self, attr) == param
+                    continue
+
+                # attributes name expected here are of the format <aspect>_<bound>
+                # for exact equality, just <aspect>
+
+                split_attr = attr.split('_')
+                # irrespective of exact or bound, first part is always the aspect
+                aspect = split_attr[0]
+
+                if isinstance(self, getattr(self.model, aspect).primary_type):
+                    # check type match
+
+                    # get the sample
+                    sample = getattr(self, aspect)
+
+                    if isinstance(param, list):
+                        sample = _handle_x(aspect, _handle_norm(aspect, sample))
+
+                    else:
+                        sample = _handle_x(aspect, sample)
+
+                    if len(split_attr) == 1:
+                        # if split returned just the aspect name
+                        # then it's an equality
+                        _ = sample == param
+
+                    # else, check if lower or upper bound
+
+                    elif split_attr[1] in ["max", "ub", "UB", "leq"]:
+
+                        _ = sample <= param
+
+                    elif split_attr[1] in ["min", "lb", "LB", "geq"]:
+                        _ = sample >= param
+
+                else:
+                    # error if type mismatch
+                    raise AttributeError(
+                        f"Parameter {attr} valid for {self.model.cookbook[aspect].primary_type} not {type(self).__name__}"
+                    )
 
     def __getattr__(self, name):
 

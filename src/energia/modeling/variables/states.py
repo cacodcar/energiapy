@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from ..constraints.balance import Balance
 from ..constraints.vmap import Map
@@ -16,13 +16,14 @@ if TYPE_CHECKING:
 
 @dataclass
 class State(Aspect):
-    """State Variable
+    """
+    State Variable
     Operational capacity or set point (utilization)
     """
 
-    add: Optional[Control] = None
-    sub: Optional[Control] = None
-    bound: Optional[State] = None
+    add: Control | None = None
+    sub: Control | None = None
+    bound: State | None = None
 
     def __post_init__(self):
         Aspect.__post_init__(self)
@@ -37,7 +38,8 @@ class State(Aspect):
 
 @dataclass
 class Size(State):
-    """Capacity State Variable
+    """
+    Capacity State Variable
     Operational capacity
     """
 
@@ -47,7 +49,8 @@ class Size(State):
 
 @dataclass
 class SetPoint(State):
-    """Set Point State Variable
+    """
+    Set Point State Variable
     Operational set point (utilization)
     """
 
@@ -56,7 +59,7 @@ class SetPoint(State):
 
 
 @dataclass
-class Impact(State):
+class Consequence(State):
     """Consequence of an action"""
 
     def __post_init__(self):

@@ -1,13 +1,11 @@
 """Inherited _Name (reprs) class"""
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Optional
+from ._hash import _Hash
 
 
-@dataclass
-class _Name:
+# Donot use this for any component that has a built-in name generating scheme
+# Use Hash instead
+class _Name(_Hash):
     """
     Inherited by components that only have a name.
 
@@ -25,28 +23,10 @@ class _Name:
     :ivar name: Name of the object. Defaults to ''.
     :vartype name: str
 
-    :note:
+    .. note:
         - `name` is set when the component is made a Model attribute.
     """
 
-    label: Optional[str] = None
-
-    def __post_init__(self):
+    def __init__(self, label: str = ""):
+        self.label = label
         self.name = ""
-
-    # -----------------------------------------------------
-    #                    Hashing
-    # -----------------------------------------------------
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
-
-    def __hash__(self):
-        return hash(self.name)
-
-    def __init_subclass__(cls):
-        cls.__repr__ = _Name.__repr__
-        cls.__hash__ = _Name.__hash__

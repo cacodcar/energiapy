@@ -8,6 +8,5 @@ energia.components.game.couple
 
    .. autosummary::
    
-      Couple
-      Player
+      Interact
    

@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from operator import is_
 from typing import TYPE_CHECKING, Self
 
-from ._commodity import _Commodity
+from ..._core._commodity import _Commodity
 
 if TYPE_CHECKING:
     from ...components.spatial.location import Location
+    from ..measure.unit import Unit
 
 
-@dataclass
 class Currency(_Commodity):
-    """Same as Economic Impact (Eco)
+    """
+    Same as Economic Impact (Eco)
 
     :param label: Label of the commodity, used for plotting. Defaults to None.
     :type label: str, optional
@@ -42,8 +42,18 @@ class Currency(_Commodity):
 
     locs: list[Location] = None
 
-    def __post_init__(self):
-        _Commodity.__post_init__(self)
+    def __init__(
+        self,
+        *locs: Location,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
+        self.locs = list(locs)
+        _Commodity.__init__(
+            self, basis=basis, label=label, citations=citations, **kwargs
+        )
 
         # dictionary of exchange rates
         self.exchange = {}
@@ -75,8 +85,8 @@ class Currency(_Commodity):
             self.exchange[other] = 1.0
         # assume it is a Conversion
         else:
-            currency = list(other.conversion.keys())[0]
-            rate = other.conversion[currency]
+            currency = list(other.balance.keys())[0]
+            rate = other.balance[currency]
 
             # set the exchange rate of self against other
             self.exchange[currency] = rate

@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..._core._component import _Component
 
 if TYPE_CHECKING:
-    pass
+    from ..measure.unit import Unit
 
 
-@dataclass
 class Player(_Component):
-    """Player or Actor, the one taking the decisions
+    """
+    Player or Actor, the one taking the decisions
     based on information provided
 
     Players own certain processes and be responsible for the streams and impact
@@ -23,8 +22,8 @@ class Player(_Component):
     :type basis: Unit, optional
     :param label: An optional label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: An optional citation or description for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: An optional citation or description for the component. Defaults to None.
+    :type citations: str | list[str] | dict[str, str | list[str]], optional
 
     :ivar model: The model to which the component belongs.
     :vartype model: Model
@@ -39,5 +38,10 @@ class Player(_Component):
     :vartype aspects: dict[Aspect, list[Domain]]
     """
 
-    def __post_init__(self):
-        _Component.__post_init__(self)
+    def __init__(
+        self, basis: Unit | None, label: str = "", citations: str = "", **kwargs
+    ):
+
+        _Component.__init__(
+            self, basis=basis, label=label, citations=citations, **kwargs
+        )

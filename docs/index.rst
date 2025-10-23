@@ -5,20 +5,23 @@ Energia on Python
    :parser: myst_parser.sphinx_
 
 
+.. seealso::
+
+   `Gana <https://gana.readthedocs.io/en/latest/>`_, an Algebraic Modeling Language (AML)
+   for Multiscale Modeling and Optimization which serves as the backend
+
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Tutorials
    :hidden:
 
-   tutorials/installation
-   tutorials/model
-   tutorials/units
-   tutorials/time
-   tutorials/space
-   tutorials/resource
-   tutorials/process
-   tutorials/fetch_nsrdb_data
-   tutorials/common_issues 
+   tutorials/getting_started/index
+   tutorials/defining_components/index
+   tutorials/additional_features/index
+   tutorials/troubleshooting/index
+   tutorials/handling_attributes/index
+   tutorials/mathematical_program/index
+
 
 .. toctree::
    :maxdepth: 1
@@ -26,11 +29,10 @@ Energia on Python
    :hidden:
 
    examples/scheduling
+   examples/design_scheduling_attrs
    examples/design_scheduling
    examples/design_scheduling_material
-   .. examples/multi_location
-   .. examples/multi_parametric
-   .. examples/supermarket
+
 
 
 .. toctree::
@@ -39,6 +41,20 @@ Energia on Python
    :hidden:
    
    frameworks
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Information
+   :hidden:
+
+   license
+   changelog
+   
+
+References
+----------
+
+.. bibliography::
 
 
 API Reference

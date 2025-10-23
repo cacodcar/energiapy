@@ -37,7 +37,6 @@ energia.library.recipes
       SetPoint
       Size
       Social
-      State
       Stored
       Transport
    

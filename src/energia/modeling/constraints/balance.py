@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import time as keep_time
 from operator import is_
 from typing import TYPE_CHECKING, Self
 
-from ...components.commodity.stored import Stored
+from ..._core._hash import _Hash
+from ...components.operation.storage import Stored
+
+logger = logging.getLogger("energia")
 
 if TYPE_CHECKING:
     from gana.sets.constraint import C
@@ -19,15 +23,22 @@ if TYPE_CHECKING:
     from ..variables.aspect import Aspect
 
 
-class Balance:
+class Balance(_Hash):
     """Performs a general commodity balance
 
-    Args:
-        aspect (Aspect. optional): Aspect to which the constraint is applied
-        domain (Domain. optional): Domain over which the aspect is defined
+    :param aspect: Aspect to which the constraint is applied
+    :type aspect: Aspect
+    :param domain: Domain over which the aspect is defined
+    :type domain: Domain
+    :param label: Label for the constraint. Defaults to "".
+    :type label: str
 
-    Attributes:
-        name (str. optional): Name of the constraint.
+    :ivar model: The model to which the component belongs.
+    :vartype model: Model
+    :ivar program: The program to which the constraint belongs.
+    :vartype program: Program
+    :ivar grb: The general resource balance dictionary.
+    :vartype grb: dict[Commodity, dict[Location, dict[Periods, list[Aspect]]]]
     """
 
     def __init__(self, aspect: Aspect, domain: Domain, label: str = ""):
@@ -37,7 +48,7 @@ class Balance:
 
         self.model = self.aspect.model
         self.program = self.model.program
-        self.grb = self.model.grb
+        self.grb = self.model.balances
 
         if self.domain.modes:
             return
@@ -74,6 +85,7 @@ class Balance:
             self.writecons_grb(commodity, loc, time)
 
         if self.aspect(commodity, loc, time) not in self.grb[commodity][loc][time]:
+
             # for the second check, consider the case where
 
             # # these do not get their own GRB, as they are only utilized within a process
@@ -104,7 +116,21 @@ class Balance:
         time: Periods,
         cons_grb: C,
     ) -> bool:
-        """Updates an existing GRB constraint with the new aspect"""
+        """
+        Updates an existing GRB constraint with the new aspect
+
+        :param name: Name of the constraint
+        :type name: str
+        :param stored: If the commodity is stored
+        :type stored: bool
+        :param time: Time period of the constraint
+        :type time: Periods
+        :param cons_grb: The existing GRB constraint
+        :type cons_grb: C
+
+        :returns: If the constraint was updated
+        :rtype: bool
+        """
         if stored and self.aspect.name == "inventory":
 
             if len(time) == 1:
@@ -134,7 +160,21 @@ class Balance:
     def _create_constraint(
         self, name: str, stored: bool, time: Periods, space: Location | Linkage
     ) -> bool:
-        """Creates a new GRB constraint"""
+        """
+        Creates a new GRB constraint
+
+        :param name: Name of the constraint
+        :type name: str
+        :param stored: If the commodity is stored
+        :type stored: bool
+        :param time: Time period of the constraint
+        :type time: Periods
+        :param space: Location or Linkage of the constraint
+        :type space: Location | Linkage
+
+        :returns: If the constraint was created
+        :rtype: bool
+        """
 
         if stored and self.aspect.name == "inventory":
 
@@ -162,7 +202,7 @@ class Balance:
                 else -self(*self.domain).V() == 0
             )
 
-        cons_grb.categorize("General Resource Balance")
+        cons_grb.categorize("Balance")
 
         setattr(
             self.program,
@@ -172,8 +212,19 @@ class Balance:
 
         return True
 
-    def writecons_grb(self, commodity, loc, time):
-        """Writes the stream balance constraint"""
+    def writecons_grb(self, commodity, loc, time) -> bool | None:
+        """Writes the stream balance constraint
+
+        :param commodity: Commodity being balanced
+        :type commodity: Commodity
+        :param loc: Location at which the balance is being written
+        :type loc: Location
+        :param time: Time period at which the balance is being written
+        :type time: Periods
+
+        :returns: False if the constraint was not created or updated
+        :rtype: bool | None
+        """
 
         if (
             loc.isin is not None
@@ -192,36 +243,41 @@ class Balance:
 
         else:
             stored = False
-
             if self.grb[commodity][loc]:
                 # If a GRB exists at a lower temporal order, append to that
                 lower_times = [t for t in self.grb[commodity][loc] if t > time]
+
                 if lower_times:
                     _ = self.aspect(commodity, loc, lower_times[0]) == True
                     return
 
-        # ---- initialize GRB for commodity if necessary -----
+        # -initialize GRB for commodity if necessary -----
 
         if not self.grb[commodity][loc][time]:
             # this checks whether a general commodity balance has been defined
             # for the commodity in that space and time
 
-            print(
-                f"--- General Resource Balance for {commodity} in ({loc}, {time}): initializing constraint, adding {self.aspect}{self.domain}",
+            logger.info(
+                "Balance for %s in (%s, %s): initializing", commodity, loc, time
             )
 
             start = keep_time.time()
 
             made = self._create_constraint(_name, stored, time, loc)
 
-        # ---- add aspect to GRB if not added already ----
+        # -add aspect to GRB if not added already ----
 
         # elif self not in self.grb[commodity][loc][time]:
 
         else:
 
-            print(
-                f"--- General Resource Balance for {commodity} in ({loc}, {time}): adding {self.aspect}{self.domain}",
+            logger.info(
+                "Balance for %s in (%s, %s): adding %s%s",
+                commodity,
+                loc,
+                time,
+                self.aspect,
+                self.domain,
             )
 
             start = keep_time.time()
@@ -231,11 +287,10 @@ class Balance:
             )
 
         if not made:
-            return
+            return False
 
         end = keep_time.time()
-        print(f"    Completed in {end-start} seconds")
-
+        logger.info("\u2714 Completed in %s seconds", end - start)
         # updates the constraints in all the indices of self.domain
         # add constraint name to aspect
         self.domain.update_cons(_name)
@@ -252,12 +307,3 @@ class Balance:
     def __call__(self, *index: _X):
         """Returns the variable for the aspect at the given index"""
         return self.aspect(*index)
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
-
-    def __hash__(self):
-        return hash(self.name)

@@ -2,32 +2,28 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from warnings import warn
 
-from ...modeling.parameters.conversion import Conversion
-from ._operation import _Operation
+from ..._core._operation import _Operation
 
 if TYPE_CHECKING:
     from ..commodity.resource import Resource
     from ..spatial.location import Location
-    from ..temporal.lag import Lag
     from ..temporal.periods import Periods
     from .storage import Storage
 
 
-@dataclass
 class Process(_Operation):
-    """Process converts one Resource to another Resource
-    at some Location
+    """
+    Process converts one Resource to another Resource at some Location
 
     :param basis: Unit basis of the component. Defaults to None.
     :type basis: Unit, optional
     :param label: An optional label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: An optional citation or description for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: An optional citation or description for the component. Defaults to None.
+    :type citations: str | list[str] | dict[str, str | list[str]], optional
 
     :ivar model: The model to which the component belongs.
     :vartype model: Model
@@ -40,8 +36,8 @@ class Process(_Operation):
     :vartype domains: list[Domain]
     :ivar aspects: Aspects associated with the component with domains.
     :vartype aspects: dict[Aspect, list[Domain]]
-    :ivar conv: Operational conversion associated with the operation. Defaults to None.
-    :vartype conv: Conversion, optional
+    :ivar conversion: Operational conversion associated with the operation. Defaults to None.
+    :vartype conversion: Conversion, optional
     :ivar _conv: True if the operational conversion has been set. Defaults to False.
     :vartype _conv: bool
     :ivar fab: Material conversion associated with the operation. Defaults to None.
@@ -50,20 +46,21 @@ class Process(_Operation):
     :vartype _fab_balanced: bool
     :ivar locations: Locations at which the process is balanced. Defaults to [].
     :vartype locations: list[Location]
-    :ivar ofstorage: If the Process is Storage charging and discharging. Defaults to None.
-    :vartype ofstorage: Storage, optional
+    :ivar charges: If the Process is Storage charging. Defaults to None.
+    :vartype charges: Storage, optional
+    :ivar discharges: If the Process is Storage discharging. Defaults to None.
+    :vartype discharges: Storage, optional
     """
 
-    def __post_init__(self):
-        _Operation.__post_init__(self)
+    def __init__(self, *args, label: str = "", citations: str = "", **kwargs):
+
+        _Operation.__init__(self, *args, label=label, citations=citations, **kwargs)
 
         # at which locations the process is balanced
         # Note that we do not need a conversion at every temporal scale.
         # once balanced at a location for a particular time,
         # if time != horizon, the individual streams are summed up anyway
         self.locations: list[Location] = []
-
-        self.ofstorage: Optional[Storage] = None
 
     @property
     def spaces(self) -> list[Location]:
@@ -80,7 +77,7 @@ class Process(_Operation):
             # This checks whether some other aspect is defined at
             # a lower temporal scale
 
-            if loc not in self.model.grb[res]:
+            if loc not in self.model.balances[res]:
                 # if not defined for that location, check for a lower order location
                 # i.e. location at a lower hierarchy,
                 # e.g. say if loc being passed is a city, and a grb has not been defined for it
@@ -91,7 +88,7 @@ class Process(_Operation):
                     # the conversion Balance variables will feature in grb for parent location
                     loc = parent
 
-            _ = self.model.grb[res][loc][time]
+            _ = self.model.balances[res][loc][time]
 
             if res.inv_of:
                 # for inventoried resources, the conversion is written
@@ -102,8 +99,8 @@ class Process(_Operation):
                 times = list(
                     [
                         t
-                        for t in self.model.grb[res][loc]
-                        if self.model.grb[res][loc][t]
+                        for t in self.model.balances[res][loc]
+                        if self.model.balances[res][loc][t]
                     ],
                 )
             except KeyError:
@@ -115,7 +112,7 @@ class Process(_Operation):
 
             return time.horizon
 
-        if not self.conv:
+        if not self.conversion:
             warn(
                 f"{self}: Conversion not defined, no Constraints generated",
                 UserWarning,
@@ -124,9 +121,9 @@ class Process(_Operation):
 
         # This makes the conversion consistent
         # check conv_test.py in tests for examples
-        self.conv.balancer()
+        self.conversion.balancer()
 
-        if self.conv.pwl:
+        if self.conversion.pwl:
             # if there are piece-wise linear conversions
             # here we assume that the same resources appear in all piece-wise segments
             # this is a reasonable assumption for conversion in processes
@@ -143,10 +140,10 @@ class Process(_Operation):
             # there is a problem though, because I am only checking for the elements in the first dict
             # in the multi conversion dict
 
-            conversion = self.conversion[list(self.conversion)[0]]
+            conversion = self.balance[list(self.balance)[0]]
 
         else:
-            conversion = self.conversion
+            conversion = self.balance
 
         for location, time in loc_times:
 
@@ -167,9 +164,9 @@ class Process(_Operation):
                 # insitu resource (produced and expended within the system)
                 # do not initiate a grb so we need to run a check for that first
 
-                if res in self.model.grb:
+                if res in self.model.balances:
                     time = time_checker(res, location, time)
-                    _ = self.model.grb[res].get(location, {})
+                    _ = self.model.balances[res].get(location, {})
 
                 eff = par if isinstance(par, list) else [par]
 
@@ -186,31 +183,31 @@ class Process(_Operation):
 
                 # because of using .balancer(), expend/produce are on same temporal scale
 
-                if self.conv.pwl:
+                if self.conversion.pwl:
 
-                    eff = [conv[res] for conv in self.conversion.values()]
+                    eff = [conv[res] for conv in self.balance.values()]
 
                     if eff[0] < 0:
                         eff = [-e for e in eff]
 
-                    if not self.conv.modes_set:
+                    if not self.conversion.modes_set:
                         # this is setting the bin limits for piece wise linear conversion
                         # these are written bound to capacity generally
                         # but here we pause that binding and bind operate to explicit limits
                         self.model.operate.bound = None
 
-                        _ = opr == dict(enumerate(self.conversion.keys()))
+                        _ = opr == dict(enumerate(self.balance.keys()))
 
                         # reset capacity binding
                         self.model.operate.bound = self.model.capacity
 
                         modes = self.model.modes[-1]
-                        self.conv.modes_set = True
+                        self.conversion.modes_set = True
 
                     else:
-                        modes = self.conv.modes
+                        modes = self.conversion.modes
                         modes.bind = self.operate
-                        self.conv.modes_set = True
+                        self.conversion.modes_set = True
 
                     opr = opr(modes)
 
@@ -223,16 +220,3 @@ class Process(_Operation):
 
             # update the locations at which the process exists
             self.locations.append(location)
-
-    def __call__(
-        self, resource: Resource | Conversion, lag: Optional[Lag] = None
-    ) -> Conversion:
-        """Conversion is called with a Resource to be converted"""
-
-        if not self._conv:
-            self.conv = Conversion(operation=self)
-            self._conv = True
-
-        if lag:
-            return self.conv(resource, lag)
-        return self.conv(resource)

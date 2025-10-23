@@ -33,9 +33,9 @@ class Time(_Dimension):
     :vartype modes: list[Modes]
 
     .. note::
-    - name is generated based on the Class and Model name
-    - periods are populated as the program is built.
-    - _indexed is made the first time Time is indexed.
+        - name is generated based on the Class and Model name
+        - periods are populated as the program is built.
+        - _indexed is made the first time Time is indexed.
     """
 
     def __post_init__(self):
@@ -53,7 +53,7 @@ class Time(_Dimension):
     # -----------------------------------------------------
 
     @property
-    def tree(self) -> list[Periods]:
+    def tree(self) -> dict[int | float, Periods]:
         """Return the tree of periods"""
         hrz = self.horizon
 
@@ -72,7 +72,7 @@ class Time(_Dimension):
             warn(
                 f"{size} does not match the size of any data set passed, generating 't{size}'.)",
             )
-            _ = self.model.default_periods(size=size)
+            _ = self.model._t0(size=size)
 
         return self.tree[size]
 
@@ -107,4 +107,4 @@ class Time(_Dimension):
         if self.periods:
             return self.sparsest
         # if nothing found, make a default period
-        return self.model.default_periods()
+        return self.model._t0()

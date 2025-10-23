@@ -16,9 +16,14 @@ if TYPE_CHECKING:
     from ..indices.domain import Domain
     from ..variables.aspect import Aspect
 
+import logging
+
+logger = logging.getLogger("energia")
+
 
 class Map:
-    """Maps between domains
+    """
+    Maps between domains
 
     :param aspect: Aspect to which the constraint is applied.
     :type aspect: Aspect
@@ -26,10 +31,12 @@ class Map:
     :type domain: Domain
     :param reporting: If True, the map is for a reporting variable.
     :type reporting: bool
+    :param label: Label for the constraint. Defaults to "".
+    :type label: str
     """
 
     def __init__(
-        self, aspect: Aspect, domain: Domain, label: str = "", reporting=False
+        self, aspect: Aspect, domain: Domain, reporting=False, label: str = ""
     ):
 
         # if the variable is being defined for the first time, do not bother with the rest
@@ -65,8 +72,8 @@ class Map:
 
         self.aspect = aspect
         self.domain = domain
-        self.label = label
         self.reporting = reporting
+        self.label = label
 
         if self.domain.lag:
             return
@@ -89,19 +96,19 @@ class Map:
         if space not in dispositions or time not in dispositions[space]:
             return
 
-        # --- Time mapping ---
+        # Time mapping ---
         self._map_across_time(
             dispositions, space, time, sparser_periods, denser_periods
         )
 
-        # --- Space mapping ---
+        # Space mapping ---
         contained_locs, parent_loc = self.model.space.split(space)
         self._map_across_space(dispositions, contained_locs, parent_loc, time)
 
-        # --- Bind mapping ---
+        # Bind mapping ---
         self._map_across_binds(dispositions, space, time)
 
-        # --- Mode mapping ---
+        # Mode mapping ---
         self._map_across_modes()
 
     @cached_property
@@ -109,16 +116,30 @@ class Map:
         return f"{self.aspect.name}_map"
 
     @cached_property
-    def maps(self) -> dict[str, list[Domain]]:
+    def maps(self) -> dict[Domain, dict[str, list[Domain]]]:
         return self.aspect.maps_report if self.reporting else self.aspect.maps
 
-    # ---------------------------------------------------------------------- #
+    # -------------------------------------------------------------------#
     # Helper functions
-    # ---------------------------------------------------------------------- #
+    # -------------------------------------------------------------------#
 
     def _map_across_time(
         self, dispositions, space, time, sparser_periods, denser_periods
     ):
+        """
+        Maps across time
+
+        :param dispositions: Dispositions at which the aspect has been defined
+        :type dispositions: dict[Space, dict[Periods, dict[Aspect, dict[Component, ...]]]]
+        :param space: Space at which the domain is defined
+        :type space: Space
+        :param time: Time at which the domain is defined
+        :type time: Periods
+        :param sparser_periods: Periods sparser than the domain period
+        :type sparser_periods: list[Periods]
+        :param denser_periods: Periods denser than the domain period
+        :type denser_periods: list[Periods]
+        """
         for sp in sparser_periods:
             # check if the aspect has been defined for a sparser period
             # this creates a map from this domain to a sparser domain
@@ -145,6 +166,18 @@ class Map:
                 self.writecons_map(from_domain, self.domain, tsum=True)
 
     def _map_across_space(self, dispositions, contained_locs, parent_loc, time):
+        """
+        Maps across space
+
+        :param dispositions: Dispositions at which the aspect has been defined
+        :type dispositions: dict[Space, dict[Periods, dict[Aspect, dict[Component, ...]]]]
+        :param contained_locs: Locations contained in the domain location
+        :type contained_locs: list[Space]
+        :param parent_loc: Parent location of the domain location
+        :type parent_loc: Space | None
+        :param time: Time at which the domain is defined
+        :type time: Periods
+        """
 
         parent_loc = self.domain.location.isin
 
@@ -164,11 +197,11 @@ class Map:
         #     # binds = dispositions[location][time]
         #     # if not binds:
 
-        #     print('asdadada', location, self.domain)
+        #     logger.info('asdadada', location, self.domain)
         #     self.writecons_map(self.domain.change({"location": location}), self.domain)
         # else:
         #     new_binds = [k(list(v)[0]) for k, v in binds.items()]
-        #     print('aaaa', self.aspect, new_binds, self.domain)
+        #     logger.info('aaaa', self.aspect, new_binds, self.domain)
         #     # consider the case where overall consumption for water in some location and time is defined
         #     # now user defines consumption due to using cement during construction
         #     # we should have the constraint consume(water, goa, 2025) = consume(water, goa, 2025, use, cement)
@@ -264,9 +297,9 @@ class Map:
 
         return v(*domain.Ilist).copy()
 
-    # ---------------------------------------------------------------------- #
+    # -------------------------------------------------------------------#
     # Constraint writing
-    # ---------------------------------------------------------------------- #
+    # -------------------------------------------------------------------#
     def writecons_map(
         self, from_domain: Domain, to_domain: Domain, tsum=False, msum=False
     ):
@@ -287,7 +320,7 @@ class Map:
 
         cname = self._give_cname(var, from_domain, to_domain, tsum, msum)
 
-        print(f"--- Mapping {var}: {from_domain} → {to_domain}")
+        logger.info("Mapping %s: %s → %s", var, from_domain, to_domain)
         start = keep_time.time()
 
         v_lower = self(*to_domain).X() if self.reporting else self(*to_domain).V()
@@ -302,7 +335,7 @@ class Map:
             cons.categorize("Mapping")
 
         end = keep_time.time()
-        print(f"    Completed in {end-start:.3f}s")
+        logger.info("\u2714 Completed in %s seconds", end - start)
         if cname not in self.aspect.constraints:
             self.aspect.constraints.append(cname)
         from_domain.update_cons(cname)

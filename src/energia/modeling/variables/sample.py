@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from functools import cached_property
 from itertools import chain
-from typing import TYPE_CHECKING, Optional, Self
+from typing import TYPE_CHECKING, Self
 
 from gana import I as Idx
 from gana import V, inf, sigma, sup
@@ -13,8 +14,12 @@ from ...utils.dictionary import merge_trees
 from ..constraints.bind import Bind
 from ..constraints.calculate import Calculate
 
+logger = logging.getLogger("energia")
+
 if TYPE_CHECKING:
     from gana.sets.constraint import C
+    from gana.sets.function import F
+    from gana.sets.program import Prg
 
     from ..._core._component import _Component
     from ..._core._x import _X
@@ -55,11 +60,11 @@ class Sample:
     :vartype hasinc: bool
 
     .. note::
-    - ``timed`` and ``spaced`` help skip the calculation of finding the appropriate index.
-        For time, this is done based on the length of the input parameter.
-    - ``opr`` is useful if providing a combined bound to different variables.
-    - ``name`` is generated based on the variable.
-    - ``domains`` are updated as the program is built.
+        - ``timed`` and ``spaced`` help skip the calculation of finding the appropriate index.
+            For time, this is done based on the length of the input parameter.
+        - ``opr`` is useful if providing a combined bound to different variables.
+        - ``name`` is generated based on the variable.
+        - ``domains`` are updated as the program is built.
     """
 
     def __init__(
@@ -84,7 +89,7 @@ class Sample:
 
         self.model = self.aspect.model
         self.program = self.model.program
-        self.grb = self.model.grb
+        self.grb = self.model.balances
 
         # if the aspect is bound (operate for example)
         self.bound = self.aspect.bound
@@ -97,7 +102,7 @@ class Sample:
 
         # if nominal is provided
         # and multiplied by the nominal value
-        self.nominal: Optional[float] = None
+        self.nominal: float | None = None
         # the input argument is normalized if True
         self.norm: bool = False
 
@@ -143,6 +148,9 @@ class Sample:
     @property
     def F(self):
         """Function"""
+
+        if self.report:
+            return self.X(1)
         return self.V(1)
 
     @property
@@ -161,12 +169,13 @@ class Sample:
 
     def V(
         self,
-        parameters: Optional[float | list] = None,
-        length: Optional[int] = None,
+        parameters: float | list[float] | None = None,
+        length: int | None = None,
         report: bool = False,
         incidental: bool = False,
     ) -> V:
-        """Returns a gana variable (V) using .domain as the index.
+        """
+        Returns a gana variable (V) using .domain as the index.
         If time and space are (or) not given, i.e. .spaced or .timed are False,
         They can be determined.
 
@@ -177,13 +186,16 @@ class Sample:
 
         If the spatial index is not given, it defaults to the network.
 
+        :param parameters: the parameter/parameter set. Defaults to None.
+        :type parameters: int | list, optional
+        :param length: length of the parameter set. Defaults to None.
+        :type length: int, optional
+        :param report: to make a binary reporting variable. Defaults to False.
+        :type report: bool, optional
+        :param incidental: if this is an incidental calculation. Defaults to False.
+        :type incidental: bool, optional
 
-        Args:
-            parameters (int | list): the parameter/parameter set. Defaults to None.
-            length (int): length of the parameter set. Defaults to None.
-            report (bool): to make a binary reporting variable. Defaults to False.
-            incidental (bool): if this is an incidental calculation. Defaults to False.
-        Note:
+        .. note::
             - parameters and length are mutually exclusive
         """
 
@@ -209,7 +221,7 @@ class Sample:
                 self.domain = self.domain.change({"lag": lag, "periods": None})
                 return getattr(self.program, self.aspect.name)(*self.domain.Ilist)
 
-        # ------ Check time and space -------
+        # ---Check time and space -------
         # this is only called if the bind variable has no temporal index defined
         def time():
             """Matches an appropriate temporal scale"""
@@ -252,7 +264,7 @@ class Sample:
         # get the list of Indices in the domain
         index = tuple(self.domain.Ilist)
 
-        # --------- if reporting binary ---------------
+        # ------if reporting binary ---------------
         # if a reporting binary variable is needed
         if report:
             # these are basically named using a breve over the variable name or latex name
@@ -284,7 +296,7 @@ class Sample:
         #   calc = v * param
         #   calc_incidental = v_reporting * param_incidental
 
-        # --------- if incidental ---------------
+        # ------if incidental ---------------
 
         if incidental:
             # named with a superscript inc
@@ -301,7 +313,7 @@ class Sample:
             )
             return getattr(self.program, f"{self.aspect.name}_incidental")(*index)
 
-        # --------- if continuous ---------------
+        # ------if continuous ---------------
 
         # the reason we check by name:
         # some variables can serve as indices, a normal check ends by
@@ -338,7 +350,7 @@ class Sample:
             # that the aspect was sampled
             self.domain.update_domains(self.aspect)
 
-            # --------- Update the disposition ---------------
+            # ------Update the disposition ---------------
 
             # get the primary component
             # update the disposition dictionary
@@ -356,26 +368,28 @@ class Sample:
         return getattr(self.program, self.aspect.name)(*index)
 
     def Vinc(self, parameters: float | list = None, length: int = None) -> V:
-        """Returns the incidental variable
+        """
+        Returns the incidental variable
 
-        Args:
-            parameters (float | list): the parameter/parameter set. Defaults to None.
-            length (int): length of the parameter set. Defaults to None.
+        :param parameters: the parameter/parameter set. Defaults to None.
+        :type parameters: float | list, optional
+        :param length: length of the parameter set. Defaults to None.
+        :type length: int, optional
 
-        Returns:
-            V: the incidental variable
+        :returns: the incidental variable
+        :rtype: V
         """
         self.hasinc = True
         return self.V(parameters, length, incidental=True)
 
     def Vb(self) -> V:
-        r"""Bound Variable
-
-        Returns:
-            V: the bound variable
-
+        r"""
+        Bound Variable
         These apply when there are multiple levels of variable-making
         Endogenous bounds apply, i.e.
+
+        :returns: the bound variable
+        :rtype: V
 
         .. math::
            \mathbf{v}_{\dots, t^{+}} <= {\theta}_{\dots, t^{+}} \cdot \mathbf{v}_{\dots, t^{-}}
@@ -391,8 +405,8 @@ class Sample:
 
         if bound_aspect not in self.model.dispositions:
             return 1
-            # print(
-            #     f"--- Aspect ({bound_aspect}) not defined, a variable will be created at {self.domain.space} assuming {self.model.horizon} as the temporal index",
+            # logger.info(
+            #     f"Aspect ({bound_aspect}) not defined, a variable will be created at {self.domain.space} assuming {self.model.horizon} as the temporal index",
             # )
 
             # _ = bound_aspect(self.domain.primary, self.domain.space).V()
@@ -403,8 +417,11 @@ class Sample:
         ):
 
             # if the bound variable has not been defined at the given space
-            print(
-                f"--- Aspect ({bound_aspect}) not defined at {self.domain.space}, a variable will be created assuming {self.model.horizon} as the temporal index",
+            logger.info(
+                "Aspect (%s) not defined at %s, a variable will be created assuming %s as the temporal index",
+                bound_aspect,
+                self.domain.space,
+                self.model.horizon,
             )
 
             domain = self.domain.change({"periods": self.model.horizon})
@@ -426,8 +443,8 @@ class Sample:
         return bound_aspect(domain=domain).V()
 
     def X(self, parameters: float | list = None, length: int = None) -> V:
-        r"""Binary Reporting Variable
-
+        r"""
+        Binary Reporting Variable
         These report whether a variable has been made or not
         Also useful to make the variable space semi-continuous
 
@@ -443,9 +460,11 @@ class Sample:
         return self.V(parameters, length, report=True)
 
     def obj(self, max: bool = False):
-        """Set the sample itself as the objective
+        """
+        Set the sample itself as the objective
 
-        max (bool): if maximization, defaults to False
+        :param max: if maximization, defaults to False
+        :type max: bool, optional
         """
         if not self.timed:
             # if the temporal index is not passed
@@ -480,9 +499,11 @@ class Sample:
         self.program.renumber()
 
     def opt(self, max: bool = False):
-        """Optimize
+        """
+        Optimize
 
-        max (bool): if maximization, defaults to False
+        :param max: if maximization, defaults to False
+        :type max: bool, optional
         """
         self.obj(max)
         # optimize!
@@ -498,27 +519,37 @@ class Sample:
         return (bmin, bmax)
 
     def prep(self, nominal: float = 1, norm: bool = True) -> Self:
-        """Nominal value
-        Args:
-            value (float): Nominal value to multiply with bounds
-            norm (bool): If the input argument (bounds) are normalized, defaults to True
+        """
+        Nominal value
+
+        :param nominal: If the input argument (bounds) are to be scaled, defaults to 1
+        :type nominal: float, optional
+        :param norm: If the input argument (bounds) are normalized, defaults to True
+        :type norm: bool, optional
         """
         self.nominal = nominal
         self.norm = norm
         return self
 
-    def sol(self, aslist: bool = False):
-        """Solution
-
-        Args:
-            aslist (bool, optional): Returns the solution as list, otherwise as a variable
+    def output(self, aslist: bool = False, asdict: bool = False, compare: bool = False):
         """
-        return self.V().sol(aslist=aslist)
+        Solution
+
+        :param aslist: Returns the solution as list, otherwise as a variable
+        :type aslist: bool, optional
+        :param asdict: Returns the solution as dict, otherwise as a variable
+        :type asdict: bool, optional
+        :param compare: If True, compares the solutions across multiple solves
+        :type compare: bool, optional
+        """
+        return self.V().output(aslist=aslist, asdict=asdict, compare=compare)
 
     def eval(self, *values: float):
-        """Evaluate the variable using parametric variable values
-        Args:
-            *values (float): values for the parametric variables
+        """
+        Evaluate the variable using parametric variable values
+
+        :param values: values for the parametric variables
+        :type values: float
         """
         return self.V().eval(*values)
 
@@ -553,11 +584,15 @@ class Sample:
             Bind(sample=self, parameter=other, eq=True, forall=self._forall)
 
     def __gt__(self, other):
-        print(f"--- Bind {self} > {other} is being written as {self} >= {other}")
+        logger.info(
+            "Bind %s > %s is being written as %s >= %s", self, other, self, other
+        )
         _ = self >= other
 
     def __lt__(self, other):
-        print(f"--- Bind {self} < {other} is being written as {self} <= {other}")
+        logger.info(
+            "Bind %s < %s is being written as %s <= %s", self, other, self, other
+        )
         _ = self <= other
 
     def __call__(self, *index) -> Self:
@@ -596,72 +631,87 @@ class Sample:
     def __hash__(self):
         return hash(self.name)
 
+    # This is for binding sample operations, eg. sample + sample or sample - sample
 
-# This is for binding sample operations, eg. sample + sample or sample - sample
+    def __add__(self, other: Self | FuncOfSamples):
+        if isinstance(other, (int, float)):
+            return FuncOfSamples(F=self.F + other, program=self.program)
+        return FuncOfSamples(F=self.F + other.F, program=self.program)
+
+    def __radd__(self, other):
+        if not other:
+            return self
+
+    def __sub__(self, other: Self | FuncOfSamples):
+        if isinstance(other, (int, float)):
+            return FuncOfSamples(F=self.F - other, program=self.program)
+        return FuncOfSamples(F=self.F - other.F, program=self.program)
+
+    def __rsub__(self, other: int | float):
+        return FuncOfSamples(F=other - self.F, program=self.program)
+
+    def __mul__(self, other: Self | FuncOfSamples):
+        return FuncOfSamples(F=self.F * other.F, program=self.program)
+
+    def __rmul__(self, other: int | float):
+        return FuncOfSamples(F=other * self.F, program=self.program)
 
 
-#    def __add__(self, other: Self | FBind):
-#         if isinstance(other, (int, float)):
-#             return FBind(F=self.F + other, program=self.program)
-#         return FBind(F=self.F + other.F, program=self.program)
+class FuncOfSamples:
+    """Some Function of Samples
 
-#     def __radd__(self, other):
-#         if not other:
-#             return self
+    This is used to bind a function of variables to a given parameter (set)
 
-#     def __sub__(self, other: Self | FBind):
-#         if isinstance(other, (int, float)):
-#             return FBind(F=self.F - other, program=self.program)
-#         return FBind(F=self.F - other.F, program=self.program)
+    """
 
-#     def __rsub__(self, other: int | float):
-#         return FBind(F=other - self.F, program=self.program)
+    def __init__(self, F: F, program: Prg):
+        self.program = program
+        self.F = F
 
-#     def __mul__(self, other: Self | FBind):
-#         return FBind(F=self.F * other.F, program=self.program)
+    def __add__(self, other: Self | Sample):
+        if isinstance(other, (int, float)):
+            return FuncOfSamples(F=self.F + other, program=self.program)
+        return FuncOfSamples(F=self.F + other.F, program=self.program)
 
-#     def __rmul__(self, other: int | float):
-#         return FBind(F=other * self.F, program=self.program)
+    def __radd__(self, other):
+        if not other:
+            return self
 
-# class FBind:
-#     """Function Bind
+    def __sub__(self, other: Self | Sample):
+        if isinstance(other, (int, float)):
+            return FuncOfSamples(F=self.F - other, program=self.program)
+        return FuncOfSamples(F=self.F - other.F, program=self.program)
 
-#     This is used to bind a function of variables to a given parameter (set)
+    def __rsub__(self, other: int | float):
+        return FuncOfSamples(F=other - self.F, program=self.program)
 
-#     """
+    def __mul__(self, other: Self | Sample):
+        return FuncOfSamples(F=self.F * other.F, program=self.program)
 
-#     def __init__(self, F: F, program: Prg):
-#         self.program = program
-#         self.F = F
+    def __rmul__(self, other: int | float):
+        return FuncOfSamples(F=other * self.F, program=self.program)
 
-#     def __add__(self, other: Self | Sample):
-#         if isinstance(other, (int, float)):
-#             return FBind(F=self.F + other, program=self.program)
-#         return FBind(F=self.F + other.F, program=self.program)
+    def __eq__(self, other):
+        func = self.F == other
+        setattr(self.program, f"eq_{self.F.name}", func)
+        return func
 
-#     def __radd__(self, other):
-#         if not other:
-#             return self
+    def __le__(self, other):
+        func = self.F <= other
+        setattr(self.program, f"le_{self.F.name}", func)
+        return func
 
-#     def __sub__(self, other: Self | Sample):
-#         if isinstance(other, (int, float)):
-#             return FBind(F=self.F - other, program=self.program)
-#         return FBind(F=self.F - other.F, program=self.program)
+    def __ge__(self, other):
+        func = self.F >= other
+        setattr(self.program, f"ge_{self.F.name}", func)
+        return func
 
-#     def __rsub__(self, other: int | float):
-#         return FBind(F=other - self.F, program=self.program)
+    def opt(self, max=False):
+        """Optimize the function
 
-#     def __mul__(self, other: Self | Sample):
-#         return FBind(F=self.F * other.F, program=self.program)
+        :param max: if maximization, defaults to False
+        :type max: bool, optional
+        """
 
-#     def __rmul__(self, other: int | float):
-#         return FBind(F=other * self.F, program=self.program)
-
-#     def __eq__(self, other):
-#         setattr(self.program, f"eq_{self.F.name}", self.F == other)
-
-#     def __le__(self, other):
-#         setattr(self.program, f"le_{self.F.name}", self.F <= other)
-
-#     def __ge__(self, other):
-#         setattr(self.program, f"ge_{self.F.name}", self.F >= other)
+        setattr(self.program, f"min_{self.F.name}", inf(self.F))
+        self.program.opt()

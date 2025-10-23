@@ -2,33 +2,72 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
 from typing import TYPE_CHECKING
 
 from ..._core._component import _Component
 from ...modeling.constraints.calculate import Calculate
 from ...modeling.parameters.conversion import Conversion
-from ..commodity.stored import Stored
+from ..commodity.resource import Resource
 from .process import Process
+
+logger = logging.getLogger("energia")
 
 if TYPE_CHECKING:
     from gana.sets.constraint import C
 
     from ...modeling.variables.sample import Sample
-    from ..commodity.resource import Resource
+    from ...represent.model import Model
+    from ..measure.unit import Unit
     from ..spatial.location import Location
 
 
-@dataclass
+# * Storage is made up of three components:
+
+
+# Resource in Storage
+class Stored(Resource):
+    """Resource in Storage"""
+
+    def __init__(self, *args, **kwargs):
+        Resource.__init__(self, *args, **kwargs)
+
+        # self.inv_of: Resource | None = None
+
+
+# A charging process to convert Resource into Stored
+class Charge(Process):
+    """Process that Charges Storage"""
+
+    def __init__(self, storage: Storage, *args, **kwargs):
+
+        self.storage = storage
+        super().__init__(*args, **kwargs)
+
+
+# A discharging process to convert Stored back into Resource
+class Discharge(Process):
+    """Process that Discharges Storage"""
+
+    def __init__(self, storage: Storage, *args, **kwargs):
+
+        self.storage = storage
+        super().__init__(*args, **kwargs)
+
+
 class Storage(_Component):
-    """Storage
+    """
+    Storage is a container for three main elements:
+    1. A Stored resource
+    2. A charge Process that puts the resource into storage
+    3. A discharge Process that withdraws the resource from storage
 
     :param basis: Unit basis of the component. Defaults to None.
     :type basis: Unit, optional
     :param label: An optional label for the component. Defaults to None.
     :type label: str, optional
-    :param captions: An optional citation or description for the component. Defaults to None.
-    :type captions: str | list[str] | dict[str, str | list[str]], optional
+    :param citations: An optional citation or description for the component. Defaults to None.
+    :type citations: str | list[str] | dict[str, str | list[str]], optional
     :param store: The resource to be stored. Defaults to None.
     :type store: Resource, optional
 
@@ -36,7 +75,6 @@ class Storage(_Component):
     :vartype model: Model
     :ivar name: Set when the component is assigned as a Model attribute.
     :vartype name: str
-
     :ivar constraints: List of constraints associated with the component.
     :vartype constraints: list[str]
     :ivar domains: List of domains associated with the component.
@@ -45,8 +83,8 @@ class Storage(_Component):
     :vartype aspects: dict[Aspect, list[Domain]]
     :ivar stored: The resource being stored. Defaults to None.
     :vartype stored: Stored, optional
-    :ivar conv: Operational conversion associated with the storage. Defaults to None.
-    :vartype conv: Conversion, optional
+    :ivar conversion: Operational conversion associated with the storage. Defaults to None.
+    :vartype conversion: Conversion, optional
     :ivar _conv: True if the operational conversion has been set. Defaults to False.
     :vartype _conv: bool
     :ivar charge: The charge process associated with the storage.
@@ -57,23 +95,51 @@ class Storage(_Component):
     :vartype locations: list[Location]
     """
 
-    store: Resource = None
+    def __init__(
+        self,
+        *args,
+        # store: Resource | None = None,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
 
-    def __post_init__(self):
-        _Component.__post_init__(self)
-        self.stored: Stored = None
-        self._conv = False
-        self.conv = None
-        self.charge = Process()
-        self.charge.ofstorage = self
-        self.discharge = Process()
-        self.discharge.ofstorage = self
+        _Component.__init__(
+            self, basis=basis, label=label, citations=citations, **kwargs
+        )
+
+        # Charging, Discharging, and Stored Resource (Inventory)
+        self.charge: Charge | None = None
+        self.discharge: Discharge | None = None
+        self.stored: Stored | None = None
+
+        # prevents repeated
+        self._birthed = False
+
         self.locations: list[Location] = []
 
+        self.conversions = args
+
     def __setattr__(self, name, value):
-        if name == "model" and value:
-            setattr(value, f"{self.name}.charge", self.charge)
-            setattr(value, f"{self.name}.discharge", self.discharge)
+
+        object.__setattr__(self, name, value)
+
+        if name == "model" and value is not None:
+
+            # TODO: for general case with multiple resources
+
+            self._birth_constituents(*self._split_attr())
+
+            for conv in self.conversions:
+                if not isinstance(conv, int | float):
+                    conv.operation = self
+
+            if len(self.conversions) == 1:
+                conv = self.conversions[0]
+
+                if conv.hold is not None:
+                    _ = self(conv.basis) == conv.hold
 
         super().__setattr__(name, value)
 
@@ -89,8 +155,12 @@ class Storage(_Component):
 
             if loc not in self.model.invcapacity.bound_spaces[self.stored]["ub"]:
                 # check if the storage capacity has been bound at that location
-                print(
-                    f"--- Assuming  {self.stored} inventory capacity is unbounded in ({loc}, {self.horizon})",
+
+                logger.info(
+                    "Assuming  %s inventory capacity is unbounded in (%s, %s)",
+                    self.stored,
+                    loc,
+                    self.horizon,
                 )
                 # this is not a check, this generates a constraint
                 _ = self.capacity(loc, self.horizon) == True
@@ -100,15 +170,18 @@ class Storage(_Component):
 
             if loc not in self.model.inventory.bound_spaces[self.stored]["ub"]:
                 # check if the storage inventory has been bound at that location
-                print(
-                    f"--- Assuming inventory of {self.stored} is bound by inventory capacity in ({loc}, {self.horizon})",
+                logger.info(
+                    "Assuming inventory of %s is unbounded in (%s, %s)",
+                    self.stored,
+                    loc,
+                    self.horizon,
                 )
                 try:
                     times = list(
                         [
                             t
-                            for t in self.model.grb[self.stored.inv_of][loc]
-                            if self.model.grb[self.stored.inv_of][loc][t]
+                            for t in self.model.balances[self.stored.inv_of][loc]
+                            if self.model.balances[self.stored.inv_of][loc][t]
                         ],
                     )
                 except KeyError:
@@ -120,8 +193,11 @@ class Storage(_Component):
                 else:
                     time = self.horizon
                 # if not just write opr_{pro, loc, horizon} <= capacity_{pro, loc, horizon}
-                print(
-                    f"--- Assuming inventory of {self.stored} is bound by inventory capacity in ({loc}, {time})",
+                logger.info(
+                    "Assuming inventory of %s is bound by inventory capacity in (%s, %s)",
+                    self.stored,
+                    loc,
+                    time,
                 )
 
                 _ = self.inventory(loc, time) <= 1
@@ -152,30 +228,25 @@ class Storage(_Component):
         """Inventory of the stored resource"""
         return self.stored.inventory
 
-    @property
-    def capex(self) -> Calculate:
-        """Capital Expenditure"""
-        return self.capacity[self.model.default_currency().spend]
+    # @property
+    # def capex(self) -> Calculate:
+    #     """Capital Expenditure"""
+    #     return self.capacity[self.model.default_currency().spend]
 
     @property
     def opex(self) -> Calculate:
         """Operational Expenditure"""
-        return self.charge.operate[self.model.default_currency().spend]
+        return self.charge.operate[self.model._cash().spend]
 
     @property
     def base(self) -> Resource:
         """Base resource"""
-        return self.discharge.conv.base
-
-    @property
-    def conversion(self) -> dict[Resource, int | float]:
-        """Conversion of commodities"""
-        return self.discharge.conv.conversion
+        return self.discharge.conversion.basis
 
     @property
     def storage_cost(self) -> Calculate:
         """Cost of storing the resource"""
-        return self.inventory[self.model.default_currency().spend]
+        return self.inventory[self.model._cash().spend]
 
     @property
     def cons(self) -> list[C]:
@@ -195,27 +266,76 @@ class Storage(_Component):
         """Fabrication conversion of commodities"""
         return self.charge.fab
 
+    def _birth_constituents(
+        self,
+        charging_args: dict | None = None,
+        discharging_args: dict | None = None,
+        storage_args: dict | None = None,
+    ):
+        """Birth the constituents of the storage component"""
+        if not self._birthed:
+            self.charge = Charge(storage=self, **charging_args if charging_args else {})
+            self.discharge = Discharge(
+                storage=self, **discharging_args if discharging_args else {}
+            )
+            self.stored = Stored(**storage_args if storage_args else {})
+
+            # Set them on the model
+            setattr(self.model, f"{self.name}.charge", self.charge)
+            setattr(self.model, f"{self.name}.discharge", self.discharge)
+            setattr(self.model, f"{self.name}.stored", self.stored)
+
+        self._birthed = True
+
+    def _split_attr(self):
+        """Splits the parameters dictionary into charging, discharging and storage parameters"""
+
+        _charging_args = {}
+        _discharging_args = {}
+        _storage_args = {}
+
+        for attr, param in self.parameters.items():
+            split_attr = attr.split("_")
+
+            _attr = split_attr[0]
+
+            if _attr == "charge":
+                _charging_args["_".join(split_attr[1:])] = param
+            elif _attr == "discharge":
+                _discharging_args["_".join(split_attr[1:])] = param
+            else:
+                if attr[:3] == "inv":
+                    _storage_args[attr] = param
+                else:
+                    # if there is no inv prefix.
+                    _storage_args["inv" + attr] = param
+        # reset parameters to empty
+        # none of these go on Storage itself
+        self.parameters = {}
+
+        return _charging_args, _discharging_args, _storage_args
+
     def __call__(self, resource: Stored | Conversion):
         """Conversion is called with a Resource to be converted"""
-        if not self._conv:
-            # create storage resource
-            stored = Stored()
-            resource.in_inv.append(stored)
 
-            setattr(self.model, f"{resource}.{self}", stored)
+        self._birth_constituents()
 
-            # ---------- set discharge conversion
-            self.discharge.conv = Conversion(operation=self.discharge, resource=stored)
-            _ = self.discharge.conv(resource) == -1.0 * stored
+        # _ = self.discharge(resource) == -1 * self.stored
+        # _ = self.charge(stored) ==
 
-            # ---------- set charge conversion
-            self.charge.conv = Conversion(operation=self.charge, resource=resource)
+        # -------set discharge conversion
+        self.discharge.conversion = Conversion(
+            operation=self.discharge, basis=self.stored
+        )
+        _ = self.discharge.conversion(resource) == -1.0 * self.stored
 
-            _ = self.charge.conv(stored) == -1.0 * resource
+        # -------set charge conversion
+        self.charge.conversion = Conversion(operation=self.charge, basis=resource)
 
-            setattr(self.base, self.name, stored)
+        _ = self.charge.conversion(self.stored) == -1.0 * resource
 
-            self.stored, self.stored.inv_of = stored, self.base
-            self._conv = True
+        setattr(self.discharge.conversion._basis, self.name, self.stored)
 
-        return self.discharge.conv(resource)
+        self.stored.inv_of = self.discharge.conversion._basis
+
+        return self.discharge.conversion(resource)

@@ -5,15 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import prod
 from operator import is_, is_not
-from typing import TYPE_CHECKING, Optional, Self
+from typing import TYPE_CHECKING, Self
+
+from ..._core._hash import _Hash
 
 if TYPE_CHECKING:
     from gana import I as Idx
     from gana import V
 
+    from ..._core._commodity import _Commodity
     from ..._core._x import _X
-    from ...components.commodity._commodity import _Commodity
-    from ...components.game.couple import Couple
+    from ...components.game.couple import Interact
     from ...components.game.player import Player
     from ...components.impact.indicator import Indicator
     from ...components.operation.process import Process
@@ -30,48 +32,36 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class Domain:
+class Domain(_Hash):
     """
     A domain is an ordered set of the indices of an element.
 
     :param indicator: Indicates the impact of some activity through an equivalency,
         e.g. GWP, ODP.
     :type indicator: Indicator | None
-
     :param commodity: Represents the flow of any stream, measured using some basis,
         e.g. water, Rupee, carbon-dioxide.
     :type commodity: _Commodity | None
-
     :param process: Process that is being considered, e.g. dam, farming.
     :type process: Process | None
-
     :param storage: Storage that is being considered, e.g. reservoir.
     :type storage: Storage | None
-
     :param transport: Transport that is being considered, e.g. pipeline, road.
     :type transport: Transport | None
-
     :param player: Actor that takes decisions, e.g. me, you.
     :type player: Player | None
-
     :param couple: Other actor that might be paired with the player.
     :type couple: Couple | None
-
     :param location: Spatial aspect of the domain, e.g. Goa, Texas.
     :type location: Location | None
-
     :param linkage: Linkage aspect of the domain, e.g. pipeline, road.
     :type linkage: Linkage | None
-
     :param periods: Temporal aspect of the domain, e.g. year, month.
     :type periods: Periods | None
-
     :param lag: Indicates whether the temporal element is lagged or not.
     :type lag: Lag | None
-
     :param modes: Modes applicable to the domain.
     :type modes: Modes | None
-
     :param binds: List of binds that can be summed over.
     :type binds: list[Bind] | None
 
@@ -85,26 +75,26 @@ class Domain:
     # is because we do an instance check in Aspect
     # this helps relay the checks
     # primary component (one of these is needed)
-    indicator: Optional[Indicator] = None
-    commodity: Optional[_Commodity] = None
+    indicator: Indicator | None = None
+    commodity: _Commodity | None = None
 
-    process: Optional[Process] = None
-    storage: Optional[Storage] = None
-    transport: Optional[Transport] = None
+    process: Process | None = None
+    storage: Storage | None = None
+    transport: Transport | None = None
 
     # decision - maker and other decision-maker
-    player: Optional[Player] = None
-    couple: Optional[Couple] = None
+    player: Player | None = None
+    couple: Interact | None = None
 
     # compulsory space and time elements
-    location: Optional[Location] = None
-    linkage: Optional[Linkage] = None
-    periods: Optional[Periods] = None
-    lag: Optional[Lag] = None
-    modes: Optional[Modes] = None
+    location: Location | None = None
+    linkage: Linkage | None = None
+    periods: Periods | None = None
+    lag: Lag | None = None
+    modes: Modes | None = None
 
     # These can be summed over
-    binds: Optional[list[Sample]] = field(default_factory=list)
+    binds: list[Sample] | None = field(default_factory=list)
 
     def __post_init__(self):
         # Domains are structured something like this:
@@ -155,7 +145,7 @@ class Domain:
         return self.linkage or self.location
 
     @property
-    def maker(self) -> Player | Couple:
+    def maker(self) -> Player | Interact:
         """Decision-maker"""
         return self.couple or self.player
 
@@ -185,7 +175,8 @@ class Domain:
 
     @property
     def isroot(self) -> bool:
-        """This implies that the domain is of the form
+        """
+        This implies that the domain is of the form
         <object, space, time>
         """
         if self.lag:
@@ -200,7 +191,8 @@ class Domain:
 
     @property
     def isrootroot(self) -> bool:
-        """This implies that the domain is of the form
+        """
+        This implies that the domain is of the form
         <object, network, horizon>
         Thus, an element attached to this domain has the
         lowest possible dimensionality
@@ -250,8 +242,8 @@ class Domain:
     ) -> list[Indicator | _Commodity | Process | Storage | Transport]:
         """Primary index
 
-        Returns:
-            list[X]: list of primary indices
+        :returns: list of primary indices
+        :rtype: list[X]
         """
         return [self.primary] + [
             i
@@ -263,8 +255,8 @@ class Domain:
     def index_binds(self) -> list[Aspect | _X]:
         """List of bind indices
 
-        Returns:
-            list[Bind, X]: list of bind indices
+        :returns: list of bind indices
+        :rtype: list[X]
         """
         return [x for b in self.binds for x in (b.aspect, b.domain.primary)]
 
@@ -305,7 +297,24 @@ class Domain:
         return [b.aspect for b in self.binds]
 
     @property
-    def args(self) -> dict[str, _X | Lag | Modes | list[Sample]]:
+    def args(
+        self,
+    ) -> dict[
+        str,
+        Indicator
+        | _Commodity
+        | Player
+        | Process
+        | Storage
+        | Transport
+        | Location
+        | Linkage
+        | Periods
+        | Lag
+        | Modes
+        | list[Sample]
+        | None,
+    ]:
         """Dictionary of indices"""
         return {
             "indicator": self.indicator,
@@ -323,7 +332,24 @@ class Domain:
         }
 
     @property
-    def dictionary(self) -> dict[str, _X | Lag | Modes | list[Sample]]:
+    def dictionary(
+        self,
+    ) -> dict[
+        str,
+        Indicator
+        | _Commodity
+        | Process
+        | Storage
+        | Transport
+        | Player
+        | Location
+        | Linkage
+        | Periods
+        | Lag
+        | Modes
+        | list[Sample]
+        | None,
+    ]:
         """Dictionary of indices"""
         return {
             "primary": self.primary,
@@ -369,7 +395,8 @@ class Domain:
                 j.constraints.append(cons_name)
 
     def update_domains(self, aspect: Aspect):
-        """Update all elements in the domains with the aspects
+        """
+        Update all elements in the domains with the aspects
         that they have been modeled in
         """
         for i, j in self._.items():
@@ -420,15 +447,16 @@ class Domain:
     # -----------------------------------------------------
 
     def __truediv__(self, other: list[str]) -> Self:
-        """Will give you the Domain minus a particular index
+        """
+        Will give you the Domain minus a particular index
 
-        Args:
-            other (str): index you wish to remove
+        :param other: index you wish to remove
+        :type other: str | list[str]
 
-        Returns:
-            Self: lower dimensional domain
+        :returns: lower dimensional domain
+        :rtype: Domain
 
-        Example:
+        .. example::
             >>> domain = Domain(commodity=water, operation=dam, space=goa, time=year)
             (water, dam, goa, year)
             >>> domain/'operation'
@@ -440,13 +468,13 @@ class Domain:
         return Domain(**{i: j for i, j in self.args.items() if i not in other})
 
     def __sub__(self, other: Self) -> list[str]:
-        """Will give you a list of indices that are not common between two domains
-        Args:
-            other (Self): another Domain object
-        Returns:
-            list[str]: list of indices that are not common
+        """
+        Will give you a list of indices that are not common between two domains
 
-        Example:
+        :param other: another Domain object
+        :type other: Self
+
+        .. example::
             >>> domain1 = Domain(commodity=water, operation=dam, space=goa, time=year)
             >>> domain2 = Domain(commodity=water, space=mumbai, time=year)
             >>> domain1 - domain2
@@ -488,16 +516,3 @@ class Domain:
     def __gt__(self, other: Self) -> bool:
         """Greater than comparison based on the number of indices"""
         return other < self
-
-    # -----------------------------------------------------
-    #                    Hashing
-    # -----------------------------------------------------
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.name
-
-    def __hash__(self):
-        return hash(self.name)

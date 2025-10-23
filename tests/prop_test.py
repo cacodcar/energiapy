@@ -1,6 +1,6 @@
 import pytest
 
-from energia import Resource, Model, Periods, Location, Process, Unit
+from energia import Resource, Model, Periods, Location, Process
 from operator import is_
 
 
@@ -12,9 +12,9 @@ def m():
     _m.r = Resource()
     _m.r_in = Resource()
     _m.r_out = Resource()
-    _m.r.consume <= 100
+    _ = _m.r.consume <= 100
     _m.p = Process()
-    _m.p(_m.r_out) == -_m.r_in
+    _ = _m.p(_m.r_out) == -_m.r_in
     return _m
 
 
@@ -33,7 +33,5 @@ def test_props(m):
     assert hash(m.space) == hash("Space(test)")
     assert m.t.cons == m.constraint_sets
     assert not m.r.conversions
-    assert m.r.conversion == {m.r: 1.0}
-    assert m.r_in.conversion == {m.r_in: 1.0}
-
-
+    assert m.r.balance == {m.r: 1.0}
+    assert m.r_in.balance == {m.r_in: 1.0}

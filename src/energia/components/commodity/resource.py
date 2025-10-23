@@ -7,17 +7,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from energia.components.commodity._commodity import _Commodity
+from energia._core._commodity import _Commodity
 from energia.components.impact.categories import Environ
 
 if TYPE_CHECKING:
     from ...modeling.constraints.calculate import Calculate
+    from ..measure.unit import Unit
 
 
-@dataclass
 class Resource(_Commodity):
     """
     A resource, can be a material, chemical, energy, etc.
@@ -47,18 +46,19 @@ class Resource(_Commodity):
     :vartype insitu: bool, optional
     """
 
-    def __post_init__(self):
-        _Commodity.__post_init__(self)
+    def __init__(
+        self,
+        basis: Unit | None = None,
+        label: str = "",
+        citations: str = "",
+        **kwargs,
+    ):
+        _Commodity.__init__(
+            self, basis=basis, label=label, citations=citations, **kwargs
+        )
 
         # base resource, if any in conversion
-        self.inv_of: Resource = None
-
-        # resource in its stored form
-        self.in_inv: list[Resource] = []
-
-    # @property
-    # def consume(self):
-    #     return self.model.consume(self)
+        self.inv_of: Resource | None = None
 
     @property
     def gwp(self) -> Calculate:
@@ -77,11 +77,11 @@ class Resource(_Commodity):
         return self.consume[self.model.HTP.emit]
 
     @property
-    def demand(self) -> Calculate:
-        """Demand (alias for the Aspect release)"""
-        return self.release
-
-    @property
     def price(self) -> Calculate:
         """Cost of consume"""
-        return self.consume[self.model.default_currency().spend]
+        return self.consume[self.model._cash().spend]
+
+    def __init_subclass__(cls):
+        # the hashing will be inherited by the subclasses
+        cls.__repr__ = Resource.__repr__
+        cls.__hash__ = Resource.__hash__
