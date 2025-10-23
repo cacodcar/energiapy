@@ -42,7 +42,9 @@ class _X(ABC):
         - `constraints` and `domains` are populated as the program is built.
     """
 
-    _n = 0  # class variable to count instances
+    # class variable to count instances
+    # these do not reset until the kernel is restarted
+    _n = 0
 
     def __init__(
         self,
@@ -67,7 +69,7 @@ class _X(ABC):
 
     @classmethod
     def n(cls):
-        """Ordinal in collection"""
+        """Count of instances of the class"""
         return cls._n
 
     @cached_property

@@ -36,6 +36,7 @@ from ..dimensions.problem import Problem
 from ..dimensions.space import Space
 from ..dimensions.system import System
 from ..dimensions.time import Time
+from ..dimensions.game import Game
 from ..library.aliases import aspect_aliases
 from ..library.instructions import costing_commodity, costing_operation
 from ..library.recipes import (
@@ -221,19 +222,6 @@ class Model:
             Consequence: ("problem", "consequences"),
         }
 
-        # * Maps Components to Dimensions
-        # derived from familytree
-        self.ancestry = {
-            collection: dimension for dimension, collection in self.familytree.values()
-        }
-
-        # * Maps Component to Collection
-
-        self.ilk = {
-            collection: component
-            for component, (_, collection) in self.familytree.items()
-        }
-
         # --------------------------------------------------------------------
         # * Dimensions or Representation
         # --------------------------------------------------------------------
@@ -247,12 +235,14 @@ class Model:
         self.impact = Impact(self)
         # * 4. System (Resource Task Network)
         self.system = System(self)
+        # * 5. Game (Decision-Making Network)
+        self.game = Game(self)
+        # * 6. Problem at hand
+        self.problem = Problem(self)
 
         # * II Representations
         # * 1. Graph with Edges and Nodes
         self.graph = Graph(self)
-        # * 2. Problem at hand
-        self.problem = Problem(self)
         # * 3 mathematical Program of mpMINLP subclass
         self.program = Program(model=self)
         # shorthand
@@ -328,9 +318,8 @@ class Model:
         self.graph_components = ["edges", "nodes"]
 
         # --------------------------------------------------------------------
-        # * Books of Maps
+        # * Books of Maps Between
         # --------------------------------------------------------------------
-        # Maps between:
         # * matching_aspect -> Recipe
         self.cookbook: dict[str, Recipe] = {}
         # * parameter_name -> parameter_handling_instruction
@@ -339,6 +328,15 @@ class Model:
         self.registry: dict[str, Aspect] = {}
         # * user_input_attr -> matching_aspect -> Recipe
         self.directory: dict[str, dict[str, Recipe]] = {}
+        # * collection -> dimensions (derived from familytree)
+        self.ancestry = {
+            collection: dimension for dimension, collection in self.familytree.values()
+        }
+        # * component -> collection (derived from familytree)
+        self.ilk = {
+            collection: component
+            for component, (_, collection) in self.familytree.items()
+        }
 
         # --------------------------------------------------------------------
         # * Constraint Ledger
