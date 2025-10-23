@@ -392,6 +392,7 @@ class Sample:
         :rtype: V
 
         .. math::
+        
            \mathbf{v}_{\dots, t^{+}} <= {\theta}_{\dots, t^{+}} \cdot \mathbf{v}_{\dots, t^{-}}
 
         where :
