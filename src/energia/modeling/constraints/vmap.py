@@ -106,7 +106,7 @@ class Map:
         self._map_across_space(dispositions, contained_locs, parent_loc, time)
 
         # Bind mapping ---
-        self._map_across_binds(dispositions, space, time)
+        self._map_across_samples(dispositions, space, time)
 
         # Mode mapping ---
         self._map_across_modes()
@@ -150,19 +150,19 @@ class Map:
 
         for dp in denser_periods:
             if dp in dispositions[space] and is_(time.of, dp):
-                binds_dict = dispositions[space][dp]
+                samples_dict = dispositions[space][dp]
                 # TODO - check this
                 # here I am re creating Bind objects
                 # from the dict of the form {aspect: {component: {aspect: {component: {...}}}}}
                 # there has to be a way to avoid this
                 # I make a list  of bounds as such [aspect(component), aspect(component), ...]
-                binds = [
+                samples = [
                     aspect(component)
-                    for aspect, comp_dict in binds_dict.items()
+                    for aspect, comp_dict in samples_dict.items()
                     for component in comp_dict
                 ]
                 from_domain = self.domain.copy()
-                from_domain.periods, from_domain.binds = dp, binds
+                from_domain.periods, from_domain.samples = dp, samples
                 self.writecons_map(from_domain, self.domain, tsum=True)
 
     def _map_across_space(self, dispositions, contained_locs, parent_loc, time):
@@ -194,20 +194,20 @@ class Map:
         #         # the aspect is already defined at this location
         #         # we need to check if it is defined for any periods sparser than time
         #         continue
-        #     # binds = dispositions[location][time]
-        #     # if not binds:
+        #     # samples = dispositions[location][time]
+        #     # if not samples:
 
         #     logger.info('asdadada', location, self.domain)
         #     self.writecons_map(self.domain.change({"location": location}), self.domain)
         # else:
-        #     new_binds = [k(list(v)[0]) for k, v in binds.items()]
-        #     logger.info('aaaa', self.aspect, new_binds, self.domain)
+        #     new_samples = [k(list(v)[0]) for k, v in samples.items()]
+        #     logger.info('aaaa', self.aspect, new_samples, self.domain)
         #     # consider the case where overall consumption for water in some location and time is defined
         #     # now user defines consumption due to using cement during construction
         #     # we should have the constraint consume(water, goa, 2025) = consume(water, goa, 2025, use, cement)
-        #     # in that case, binds is just []
+        #     # in that case, samples is just []
         #     self.writecons_map(
-        #         self.domain.change({"location": location, "binds": new_binds}),
+        #         self.domain.change({"location": location, "samples": new_samples}),
         #         self.domain,
         #     )
 
@@ -217,12 +217,12 @@ class Map:
         #         self.domain, self.domain.change({"location": parent_loc})
         #     )
 
-    def _map_across_binds(self, dispositions, space, time):
-        if self.domain.binds or not dispositions[space][time]:
+    def _map_across_samples(self, dispositions, space, time):
+        if self.domain.samples or not dispositions[space][time]:
             return
-        # if the current variable being declared has no binds
-        # but the aspect has already been defined at this location and time with binds
-        # there is a need to map from the defined binds to no binds
+        # if the current variable being declared has no samples
+        # but the aspect has already been defined at this location and time with samples
+        # there is a need to map from the defined samples to no samples
         # get list of domains of the aspect
 
         domains = [
@@ -231,7 +231,7 @@ class Map:
             if is_(d.primary, self.domain.primary)
             and is_(d.space, space)
             and is_(d.periods, time)
-            and d.binds
+            and d.samples
         ]
         for domain in domains:
             self.writecons_map(domain, self.domain)

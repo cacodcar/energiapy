@@ -42,11 +42,15 @@ class _X(ABC):
         - `constraints` and `domains` are populated as the program is built.
     """
 
+    _n = 0  # class variable to count instances
+
     def __init__(
         self,
         label: str = "",
         citations: str = "",
     ):
+        type(self)._n += 1  # increment per instance
+
         self.label = label
         self.citations = citations
         # the model
@@ -60,6 +64,11 @@ class _X(ABC):
         self.domains: list[Domain] = []
         # aspects associated with the component with domains
         self.aspects: dict[Aspect, list[Domain]] = {}
+
+    @classmethod
+    def n(cls):
+        """Ordinal in collection"""
+        return cls._n
 
     @cached_property
     def program(self) -> Prg:

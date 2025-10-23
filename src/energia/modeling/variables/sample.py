@@ -17,9 +17,9 @@ from ..constraints.calculate import Calculate
 logger = logging.getLogger("energia")
 
 if TYPE_CHECKING:
+    from gana.block.program import Prg
     from gana.sets.constraint import C
     from gana.sets.function import F
-    from gana.sets.program import Prg
 
     from ..._core._component import _Component
     from ..._core._x import _X
@@ -392,8 +392,8 @@ class Sample:
         :rtype: V
 
         .. math::
-        
-           \mathbf{v}_{\dots, t^{+}} <= {\theta}_{\dots, t^{+}} \cdot \mathbf{v}_{\dots, t^{-}}
+
+           \mathbf{v}_{\dots, t^{+}} \leq {\theta}_{\dots, t^{+}} \cdot \mathbf{v}_{\dots, t^{-}}
 
         where :
         - :math:`\mathbf{v}` is the variable
@@ -450,7 +450,7 @@ class Sample:
         Also useful to make the variable space semi-continuous
 
         .. math::
-              \mathbf{v}_{\dots, t} <= {\theta}_{\dots, t} \cdot \mathbf{x}_{\dots, t}
+              \mathbf{v}_{\dots, t} \leq {\theta}_{\dots, t} \cdot \mathbf{x}_{\dots, t}
 
         where :
             - :math:`\mathbf{v}` is the variable

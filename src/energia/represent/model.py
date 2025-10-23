@@ -218,6 +218,13 @@ class Model:
             collection: dimension for dimension, collection in self.familytree.values()
         }
 
+        # * Maps Component to Collection
+
+        self.ilk = {
+            collection: component
+            for component, (_, collection) in self.familytree.items()
+        }
+
         # --------------------------------------------------------------------
         # * Dimensions or Representation
         # --------------------------------------------------------------------
@@ -231,7 +238,7 @@ class Model:
         self.impact = Impact(self)
         # * 4. System (Resource Task Network)
         self.system = System(self)
-        
+
         # * II Representations
         # * 1. Graph with Edges and Nodes
         self.graph = Graph(self)
@@ -464,7 +471,7 @@ class Model:
                 self.program, collection, getattr(self.program, collection) | value.I
             )
 
-        # set aspects (as binds) on the components
+        # set samples of aspects on the components
         if aspects:
             for asp in aspects:
                 aspect = getattr(self, asp)
@@ -918,6 +925,12 @@ class Model:
         # t/t0, l/l0, cash, money
         # this will not intefere with the setting of
         # attributes what this name
+
+        if name[:3] == '_n_':
+            _n = self.ilk[name[3:]].n()
+            setattr(self, name, _n)
+            return _n
+
         if name in self.default_components:
             component = self.default_components[name]()
             return component

@@ -53,7 +53,7 @@ class Balance:
             return
 
         commodity = self.domain.commodity
-        binds = self.domain.binds
+        samples = self.domain.samples
         time = self.domain.time
 
         loc = (
@@ -68,13 +68,13 @@ class Balance:
 
         _ = self.grb[commodity][loc][time]
 
-        if not binds and commodity:
-            # if no binds, then create GRB or append to exisiting GRB
+        if not samples and commodity:
+            # if no samples, then create GRB or append to exisiting GRB
             # writecons_grb will figure it out
             self.writecons_grb(commodity, loc, time)
             return
 
-        # if there are binds
+        # if there are samples
         if commodity.insitu:
             # # we need to still check if this is this is an insitu (e.g. a storage commodity)
             # if the commodity is insitu that means that
