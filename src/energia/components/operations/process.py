@@ -81,13 +81,6 @@ class Process(Operation):
         # check conv_test.py in tests for examples
         self.production.balancer()
 
-        #! PWL
-        # if self.conversion.pwl:
-        # if there are piece-wise linear conversions
-        # here we assume that the same resources appear in all piece-wise segments
-        # this is a reasonable assumption for conversion in processes
-        # but not if process modes involve different resources
-
         # TODO:
         # make the statement eff = [conv[res] for conv in self.conversion.values()]
         # into try
@@ -116,74 +109,3 @@ class Process(Operation):
             self.space_times.append((space, time))
 
         return self, self.locations
-
-
-# for res, par in self.production.items():
-#     # set, the conversion on the resource
-
-#     #! Repurpose
-#     # setattr(res, self.name, self)
-
-#     # now there are two cases possible
-#     # the parameter (par) is positive or negative
-#     # if positive, the resource is expended
-#     # if negative, the resource is produced
-#     # also, the par can be an number or a list of numbers
-
-#     # insitu resource (produced and expended within the system)
-#     # do not initiate a grb so we need to run a check for that first
-
-#     if res in self.model.balances:
-#         time = time_checker(res, location, time)
-#         _ = self.model.balances[res].get(location, {})
-
-#     eff = par if isinstance(par, list) else [par]
-
-#     if eff[0] < 0:
-#         # Resources are consumed (expendend by Process) immediately
-#         rhs = res.expend(self.operate, location, time)
-#         eff = [-e for e in eff]
-#     else:
-#         # Production — may occur after lag
-#         lag_time = self.lag.of if self.lag else time
-#         rhs = res.produce(self.operate, location, lag_time)
-
-#     opr = self.operate(location, time)
-
-#! PWL
-# because of using .balancer(), expend/produce are on same temporal scale
-
-# if self.conversion.pwl:
-
-#     eff = [conv[res] for conv in self.balance.values()]
-
-#     if eff[0] < 0:
-#         eff = [-e for e in eff]
-
-#     if not self.conversion.modes_set:
-#         # this is setting the bin limits for piece wise linear conversion
-#         # these are written bound to capacity generally
-#         # but here we pause that binding and bind operate to explicit limits
-#         self.model.operate.bound = None
-
-#         _ = opr == dict(enumerate(self.balance.keys()))
-
-#         # reset capacity binding
-#         self.model.operate.bound = self.model.capacity
-
-#         modes = self.model.modes[-1]
-#         self.conversion.modes_set = True
-
-#     else:
-#         modes = self.conversion.modes
-#         modes.bind = self.operate
-#         self.conversion.modes_set = True
-
-#     opr = opr(modes)
-
-#     rhs = rhs(modes)
-
-# _ = opr(modes)[rhs(modes)] == eff
-
-# else:
-# _ = opr[rhs] == eff
