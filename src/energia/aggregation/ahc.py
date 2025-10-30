@@ -9,10 +9,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.neighbors import NearestCentroid
 
 from ..components.temporal.periods import Periods
-from ..utils.math import (
-    find_euclidean_distance,
-    generate_connectivity_matrix,
-)
+from ..utils.math import find_euclidean_distance, generate_connectivity_matrix
 
 
 class IncludeAHC(Enum):

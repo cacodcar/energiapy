@@ -434,6 +434,19 @@ class PWLConversion(Mapping, _Hash):
         self._add = add
         self._sub = sub
 
+    @classmethod
+    def from_balance(
+        cls,
+        balance: dict[Modes, Conversion],
+        sample: Sample,
+    ) -> Self:
+        """Creates PWLConversion from balance dict"""
+        conv = cls([], sample)
+        conv.operation = sample.domain.operation
+        conv.balance = balance
+        conv.modes = (next(iter(balance))).parent
+
+        return conv
     @property
     def aspect(self) -> str:
         if self._aspect:
@@ -456,19 +469,6 @@ class PWLConversion(Mapping, _Hash):
     def lag(self) -> str:
         return self[0].lag
 
-    @classmethod
-    def from_balance(
-        cls,
-        balance: dict[Modes, Conversion],
-        sample: Sample,
-    ) -> Self:
-        """Creates PWLConversion from balance dict"""
-        conv = cls([], sample)
-        conv.operation = sample.domain.operation
-        conv.balance = balance
-        conv.modes = (next(iter(balance))).parent
-
-        return conv
 
     def balancer(self):
         """Balances all conversions"""

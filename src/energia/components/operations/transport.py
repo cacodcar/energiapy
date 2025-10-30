@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     # from ..commodities.resource import Resource
     from ..spatial.linkage import Linkage
     from ..spatial.location import Location
+
     # from ..temporal.periods import Periods
 
 
@@ -103,17 +104,17 @@ class Transport(Operation):
 
     #         return time.horizon
 
-    #     self.production.balancer()
+    #     seloperating_setpointon.balancer()
 
-    #     if self.production.pwl:
+    #     if seloperating_setpointon.pwl:
 
     #         conversion = self.balance[list(self.balance)[0]]
 
     #     else:
     #         conversion = self.balance
 
-    #     shipping_conversion, rest_conversion = {self.production.resource: 1}, {
-    #         k: v for k, v in conversion.items() if k != self.production.resource
+    #     shipping_conversion, rest_conversion = {seloperating_setpointon.resource: 1}, {
+    #         k: v for k, v in conversion.items() if k != seloperating_setpointon.resource
     #     }
 
     #     for link_time in link_times:
@@ -211,26 +212,26 @@ class Transport(Operation):
     #                 _ = rhs_export == True
     #                 _ = rhs_import == True
 
-    #             if self.production.pwl:
+    #             if seloperating_setpointon.pwl:
 
     #                 eff = [conv[res] for conv in self.balance.values()]
 
     #                 if eff[0] < 0:
     #                     eff = [-i for i in eff]
 
-    #                 if not self.production.modes_set:
+    #                 if not seloperating_setpointon.modes_set:
     #                     self.model.operate.bound = None
     #                     _ = opr == dict(enumerate(self.balance.keys()))
 
-    #                     self.model.operate.bound = self.production.model.capacity
+    #                     self.model.operate.bound = seloperating_setpointon.model.capacity
 
     #                     modes = self.model.modes[-1]
-    #                     self.production.modes_set = True
+    #                     seloperating_setpointon.modes_set = True
 
     #                 else:
-    #                     modes = self.production.modes
+    #                     modes = seloperating_setpointon.modes
     #                     modes.bind = self.operate
-    #                     self.production.modes_set = True
+    #                     seloperating_setpointon.modes_set = True
 
     #                 opr = opr(modes)
     #                 rhs_export = rhs_export(modes)

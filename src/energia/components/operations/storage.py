@@ -166,7 +166,7 @@ class Storage(_Component):
     @property
     def basis(self) -> Resource:
         """Base resource"""
-        return self.discharge.production.basis
+        return self.discharge.conversion.basis
 
     @property
     def storage_cost(self) -> Calculate:
@@ -353,7 +353,7 @@ class Storage(_Component):
 
         _ = self.charge(self.stored) == -resource
 
-        self.discharge.production.expect = self.stored
+        self.discharge.conversion.expect = self.stored
 
         self.stored.inv_of = resource
 

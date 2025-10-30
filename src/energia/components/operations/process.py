@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from ...modeling.parameters.conversion import Conversion
 from ...utils.decorators import timer
 from .operation import Operation
 
@@ -61,6 +62,21 @@ class Process(Operation):
         # if time != horizon, the individual streams are summed up anyway
         self.locations: list[Location] = []
 
+        self.conversion = Conversion(
+            aspect='operate',
+            add="produce",
+            sub="expend",
+            attr_name="production",
+        )
+
+        self.construction = Conversion(
+            aspect='capacity',
+            add="dispose",
+            sub="use",
+            attr_name="construction",
+            use_max_time=True,
+        )
+
     @property
     def spaces(self) -> list[Location]:
         """Locations at which the process is balanced"""
@@ -70,7 +86,7 @@ class Process(Operation):
     def write_production(self, space_times: list[tuple[Location, Periods]]):
         """Write the production constraints for the process"""
 
-        if not self.production:
+        if not self.conversion:
             logger.warning(
                 "%s: Production not defined, no Constraints generated",
                 self.name,
@@ -79,7 +95,7 @@ class Process(Operation):
 
         # This makes the production consistent
         # check conv_test.py in tests for examples
-        self.production.balancer()
+        self.conversion.balancer()
 
         # TODO:
         # make the statement eff = [conv[res] for conv in self.conversion.values()]
@@ -102,7 +118,7 @@ class Process(Operation):
                 # if the process is already balanced for the space , Skip
                 continue
 
-            self.production.write(space, time)
+            self.conversion.write(space, time)
 
             # update the locations at which the process exists
             self.locations.append(space)
