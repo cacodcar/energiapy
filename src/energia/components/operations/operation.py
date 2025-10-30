@@ -61,7 +61,9 @@ class Operation(_Component):
     ):
         _Component.__init__(self, label=label, citations=citations, **kwargs)
 
-        self.conversions: list[Conversion] = list(args)
+
+
+        self.conversions = args
         self.space_times: list[tuple[Location | Linkage, Periods]] = []
 
     @property
@@ -205,20 +207,13 @@ class Operation(_Component):
         return self.production(resource)
 
     def __setattr__(self, name, value):
-        object.__setattr__(self, name, value)
-
-        if isinstance(value, Conversion):
-            value.operation = self
-            self.conversions.append(value)
 
         if name == "model" and value is not None:
             for conv in self.conversions:
                 conv.operation = self
 
-            self.conversion == self.conversions
-
-            # if len(self.conversions) == 1:
-            #     self.production += self.conversions[0]
-            #     self.production.resource = self.conversions[0].resource
+            if len(self.conversions) == 1:
+                self.production += self.conversions[0]
+                self.production.resource = self.conversions[0].resource
 
         super().__setattr__(name, value)

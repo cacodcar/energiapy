@@ -62,7 +62,8 @@ class Process(Operation):
         # if time != horizon, the individual streams are summed up anyway
         self.locations: list[Location] = []
 
-        self.conversion = Conversion(
+        self.production = Conversion(
+            operation=self,
             aspect='operate',
             add="produce",
             sub="expend",
@@ -70,6 +71,7 @@ class Process(Operation):
         )
 
         self.construction = Conversion(
+            operation=self,
             aspect='capacity',
             add="dispose",
             sub="use",
@@ -86,7 +88,7 @@ class Process(Operation):
     def write_production(self, space_times: list[tuple[Location, Periods]]):
         """Write the production constraints for the process"""
 
-        if not self.conversion:
+        if not self.production:
             logger.warning(
                 "%s: Production not defined, no Constraints generated",
                 self.name,
@@ -95,7 +97,7 @@ class Process(Operation):
 
         # This makes the production consistent
         # check conv_test.py in tests for examples
-        self.conversion.balancer()
+        self.production.balancer()
 
         # TODO:
         # make the statement eff = [conv[res] for conv in self.conversion.values()]
@@ -118,7 +120,7 @@ class Process(Operation):
                 # if the process is already balanced for the space , Skip
                 continue
 
-            self.conversion.write(space, time)
+            self.production.write(space, time)
 
             # update the locations at which the process exists
             self.locations.append(space)
