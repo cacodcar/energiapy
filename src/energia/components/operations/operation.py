@@ -61,10 +61,10 @@ class Operation(_Component):
     ):
         _Component.__init__(self, label=label, citations=citations, **kwargs)
 
-
-
         self.conversions = args
         self.space_times: list[tuple[Location | Linkage, Periods]] = []
+        self.operate_conversion: Conversion | None = None
+        self.capacity_conversion: Conversion | None = None
 
     @property
     @abstractmethod
@@ -94,36 +94,30 @@ class Operation(_Component):
     @property
     def basis(self) -> Resource:
         """Base resource"""
-        return self.production.resource
+        return self.operate_conversion.resource
 
     @property
     def balance(self) -> dict[Resource, int | float]:
         """Conversion of commodities"""
-        return self.production.balance
+        return self.operate_conversion.balance
 
     @property
     def lag(self) -> Lag:
         """Lag of the process"""
-        return self.production.lag
-
-    def write_production(
-        self,
-        space_times: list[tuple[Location | Linkage, Periods]],
-    ):
-        """write conversion constraints for the operation"""
+        return self.operate_conversion.lag
 
     @timer(logger, kind="construction")
-    def write_construction(
+    def _write_capacity_conversion(
         self,
         space_times: list[tuple[Location | Linkage, Periods]],
         # fabrication: dict[Resource, int | float | list[int | float]],
     ):
         """write fabrication constraints for the operation"""
 
-        self.construction.balancer()
+        self.capacity_conversion.balancer()
 
         for location, time in space_times:
-            self.construction.write(location, time)
+            self.capacity_conversion.write(location, time)
 
         return self, (l for l, _ in space_times)
 
@@ -190,10 +184,10 @@ class Operation(_Component):
                     if space_time not in space_times:
                         space_times.append(space_time)
 
-        self.write_production(space_times)
+        self._write_operate_conversion(space_times)
 
-        if self.construction is not None:
-            self.write_construction(self.space_times)
+        if self.capacity_conversion is not None:
+            self._write_capacity_conversion(self.space_times)
 
         return self, spaces
 
@@ -201,10 +195,10 @@ class Operation(_Component):
         self, resource: Resource | Conversion, lag: Lag | None = None
     ) -> Conversion:
         """Conversion is called with a Resource to be converted"""
-        self.production.resource = resource
+        self.operate_conversion.resource = resource
         if lag:
-            return self.production(resource, lag)
-        return self.production(resource)
+            return self.operate_conversion(resource, lag)
+        return self.operate_conversion(resource)
 
     def __setattr__(self, name, value):
 
@@ -213,7 +207,51 @@ class Operation(_Component):
                 conv.operation = self
 
             if len(self.conversions) == 1:
-                self.production += self.conversions[0]
-                self.production.resource = self.conversions[0].resource
+                self.operate_conversion += self.conversions[0]
+                self.operate_conversion.resource = self.conversions[0].resource
 
         super().__setattr__(name, value)
+
+    @timer(logger, kind="production")
+    def _write_operate_conversion(self, space_times: list[tuple[Location, Periods]]):
+        """Write the production constraints for the process"""
+
+        if not self.operate_conversion:
+            logger.warning(
+                "%s: operate_conversion not defined, no Constraints generated",
+                self.name,
+            )
+            return
+
+        # This makes the operate_conversion consistent
+        # check conv_test.py in tests for examples
+        self.operate_conversion.balancer()
+
+        # TODO:
+        # make the statement eff = [conv[res] for conv in self.conversion.values()]
+        # into try
+        # if that fails, create a consistent dict, see:
+        # {0: {r1: 10, r2: -5}, 1: {r1: 8, r2: -4, r3: -2}}
+        # transforms to {0: {r1: 10, r2: -5, r3: 0}, 1: {r1: 8, r2: -4, r3: -2}}
+        # the r3: 0 will ensure that r3 is considered in all modes
+        # the zero checks will prevent unnecessary constraints
+        # there is a problem though, because I am only checking for the elements in the first dict
+        # in the multi conversion dict
+
+        #     conversion = self.balance[list(self.balance)[0]]
+
+        # else:
+
+        for space, time in space_times:
+
+            if space in self.spaces:
+                # if the process is already balanced for the space , Skip
+                continue
+
+            self.operate_conversion.write(space, time)
+
+            # update the locations at which the process exists
+            self.spaces.append(space)
+            self.space_times.append((space, time))
+
+        return self, self.spaces

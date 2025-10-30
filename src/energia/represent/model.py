@@ -18,6 +18,7 @@ from ..components.commodities.material import Material
 from ..components.commodities.resource import Resource
 from ..components.game.couple import Interact
 from ..components.game.player import Player
+
 # from ..components.graph.edge import Edge
 # from ..components.graph.node import Node
 from ..components.impact.categories import Economic, Environ, Social
@@ -37,9 +38,17 @@ from ..dimensions.system import System
 from ..dimensions.time import Time
 from ..library.aliases import aspect_aliases
 from ..library.instructions import costing_commodity, costing_operation
-from ..library.recipes import (capacity_sizing, economic, environmental,
-                               free_movement, inventory_sizing, operating,
-                               social, trade, usage)
+from ..library.recipes import (
+    capacity_sizing,
+    economic,
+    environmental,
+    free_movement,
+    inventory_sizing,
+    operating,
+    social,
+    trade,
+    usage,
+)
 from ..modeling.parameters.instruction import Instruction
 from ..modeling.variables.control import Control
 from ..modeling.variables.recipe import Recipe
@@ -424,7 +433,6 @@ class Model:
         value: _X,
         represent: str,
         collection: str,
-        aspects: list[str] | None = None,
     ):
         """Update the Model with a new value
 
@@ -436,10 +444,10 @@ class Model:
         :type represent: str
         :param collection: Collection within the representation to which the value belongs
         :type collection: str
-        :param aspects: Aspects to be added to the value, defaults to None
-        :type aspects: list[str], optional
+        :param _: short hand
+        :type _: str
         """
-
+   
         value.name = name
         # every component is handed the model
         value.model = self
@@ -474,16 +482,6 @@ class Model:
             setattr(
                 self.program, collection, getattr(self.program, collection) | value.I
             )
-
-        # set aspect samples on the components
-        if aspects:
-            for asp in aspects:
-                aspect = getattr(self, asp)
-
-                setattr(value, asp, aspect(value))
-
-                if aspect.neg is not None:
-                    setattr(value, aspect.neg.name, aspect.neg(value))
 
     # -------------------------------------------------------------------
     # * Birthing Procedures and Setting Aliases
@@ -646,7 +644,7 @@ class Model:
     # * Easy Birthing of Components
     # ------------------------------------------------------------------------
 
-    def declare(self, what: Type[_X], names: list[str]):
+    def declare(self, what: Type[_X], names: list[str] = None, n: int = 1, _: str = ""):
         """Declares objects conveniently
 
         :param what: Type of object to be created
@@ -654,6 +652,9 @@ class Model:
         :param names: Names of the objects to be created
         :type names: list[str]
         """
+        if not names:
+            names = [f"{_}{i}" for i in range(n)]
+
         for i in names:
             setattr(self, i, what())
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .operation import Operation
+from ...modeling.parameters.conversion import Conversion
 
 if TYPE_CHECKING:
     # from ..commodities.resource import Resource
@@ -52,6 +53,23 @@ class Transport(Operation):
 
         Operation.__init__(self, *args, label=label, citations=citations, **kwargs)
         self.linkages: list[Linkage] = []
+
+        self.operate_conversion = Conversion(
+            operation=self,
+            aspect="operate",
+            add="ship_in",
+            sub="ship_out",
+            attr_type="operate_conversion",
+        )
+
+        self.capacity_conversion = Conversion(
+            operation=self,
+            aspect='capacity',
+            add="dispose",
+            sub="use",
+            attr_type="capacity_conversion",
+            use_max_time=True,
+        )
 
     @property
     def spaces(self) -> list[Location]:

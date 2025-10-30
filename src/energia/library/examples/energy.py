@@ -152,31 +152,31 @@ def design_scheduling_materials():
     _ = m.wf.capacity.x <= 100
     _ = m.wf.capacity.x >= 10
     _ = m.wf.operate.prep(norm=True) <= [0.9, 0.8, 0.5, 0.7]
-    _ = m.wf.construction == [
+    _ = m.wf.capacity_conversion == [
         -109.9 * m.steel - 398.7 * m.concrete,
         -249.605 * m.steel - 12.4 * m.concrete,
     ]
     _ = m.wf(m.power) == {
-        m.wf.construction.modes[0]: -2.857 * m.wind,
-        m.wf.construction.modes[1]: -2.3255 * m.wind,
+        m.wf.capacity_conversion.modes[0]: -2.857 * m.wind,
+        m.wf.capacity_conversion.modes[1]: -2.3255 * m.wind,
     }
 
-    _ = m.wf.capacity[m.usd.spend](m.wf.construction.modes) == [150000, 120000]
-    _ = m.wf.capacity(m.wf.construction.modes)[m.usd.spend] == [
+    _ = m.wf.capacity[m.usd.spend](m.wf.capacity_conversion.modes) == [150000, 120000]
+    _ = m.wf.capacity(m.wf.capacity_conversion.modes)[m.usd.spend] == [
         1292000 + 29200,
         3192734 + 101498,
     ]
     _ = m.wf.operate[m.usd.spend] == 49
 
     m.pv = Process()
-    _ = m.pv.construction == [
+    _ = m.pv.capacity_conversion == [
         -70 * m.glass - 7 * m.si_mono,
         -70 * m.glass - 7 * m.si_poly,
     ]
 
     _ = m.pv(m.power) == {
-        m.pv.construction.modes[0]: -5 * m.solar,
-        m.pv.construction.modes[1]: -6.67 * m.solar,
+        m.pv.capacity_conversion.modes[0]: -5 * m.solar,
+        m.pv.capacity_conversion.modes[1]: -6.67 * m.solar,
     }
     _ = m.pv.capacity.x <= 100
     _ = m.pv.capacity.x >= 10

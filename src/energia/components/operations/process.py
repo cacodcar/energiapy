@@ -62,68 +62,33 @@ class Process(Operation):
         # if time != horizon, the individual streams are summed up anyway
         self.locations: list[Location] = []
 
-        self.production = Conversion(
+        self.operate_conversion = Conversion(
             operation=self,
             aspect='operate',
             add="produce",
             sub="expend",
-            attr_name="production",
+            attr_type="operate_conversion",
         )
-
-        self.construction = Conversion(
+        self.capacity_conversion = Conversion(
             operation=self,
             aspect='capacity',
             add="dispose",
             sub="use",
-            attr_name="construction",
+            attr_type="capacity_conversion",
             use_max_time=True,
         )
+
+    @property
+    def production(self) -> Conversion:
+        """Production Conversion"""
+        return self.operate_conversion
+
+    @property
+    def construction(self) -> Conversion:
+        """Capacity Conversion"""
+        return self.capacity_conversion
 
     @property
     def spaces(self) -> list[Location]:
         """Locations at which the process is balanced"""
         return self.locations
-
-    @timer(logger, kind="production")
-    def write_production(self, space_times: list[tuple[Location, Periods]]):
-        """Write the production constraints for the process"""
-
-        if not self.production:
-            logger.warning(
-                "%s: Production not defined, no Constraints generated",
-                self.name,
-            )
-            return
-
-        # This makes the production consistent
-        # check conv_test.py in tests for examples
-        self.production.balancer()
-
-        # TODO:
-        # make the statement eff = [conv[res] for conv in self.conversion.values()]
-        # into try
-        # if that fails, create a consistent dict, see:
-        # {0: {r1: 10, r2: -5}, 1: {r1: 8, r2: -4, r3: -2}}
-        # transforms to {0: {r1: 10, r2: -5, r3: 0}, 1: {r1: 8, r2: -4, r3: -2}}
-        # the r3: 0 will ensure that r3 is considered in all modes
-        # the zero checks will prevent unnecessary constraints
-        # there is a problem though, because I am only checking for the elements in the first dict
-        # in the multi conversion dict
-
-        #     conversion = self.balance[list(self.balance)[0]]
-
-        # else:
-
-        for space, time in space_times:
-
-            if space in self.locations:
-                # if the process is already balanced for the space , Skip
-                continue
-
-            self.production.write(space, time)
-
-            # update the locations at which the process exists
-            self.locations.append(space)
-            self.space_times.append((space, time))
-
-        return self, self.locations

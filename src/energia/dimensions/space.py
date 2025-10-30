@@ -119,8 +119,11 @@ class Space(_Dimension):
         """List of spatial components"""
         return self.locations + self.linkages
 
-    def split(self, loc: Location) -> tuple[list[Location], list[Location]]:
+    def split(self, loc: Location | Linkage) -> tuple[list[Location], list[Location]]:
         """Gives a list of locations at a higher and lower hierarchy than loc"""
+        if isinstance(loc, Linkage):
+            return [], [self.network]
+
         hierarchy = self.hierarchy
 
         loc_pos = loc.hierarchy

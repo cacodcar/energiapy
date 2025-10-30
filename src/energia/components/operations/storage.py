@@ -124,7 +124,7 @@ class Storage(_Component):
             aspect='invcapacity',
             add="dispose",
             sub="use",
-            attr_name="construction",
+            attr_type="construction",
             use_max_time=True,
         )
 

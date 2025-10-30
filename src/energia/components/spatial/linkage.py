@@ -157,6 +157,8 @@ class Linkage(_X):
         setattr(self.program, self.name, _index)
         return _index
 
+
+
     def update_hierarchy(self, hierarchy: int = 0):
         """Updates the hierarchy of the locations"""
 

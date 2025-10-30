@@ -64,7 +64,7 @@ class Conversion(Mapping, _Hash):
         resource: Commodity | None = None,
         balance: dict[Commodity, float | list[float]] | None = None,
         hold: int | float | None = None,
-        attr_name: str = "",
+        attr_type: str = "",
         symbol: str = "η",
         use_max_time: bool = False,
     ):
@@ -96,7 +96,7 @@ class Conversion(Mapping, _Hash):
         self.lag: Lag | None = None
 
         # this is carried forth incase, piece wise linear conversion is used
-        self.attr_name = attr_name
+        self.attr_name = attr_type
 
         self.use_max_time = use_max_time
 
@@ -447,6 +447,7 @@ class PWLConversion(Mapping, _Hash):
         conv.modes = (next(iter(balance))).parent
 
         return conv
+
     @property
     def aspect(self) -> str:
         if self._aspect:
@@ -468,7 +469,6 @@ class PWLConversion(Mapping, _Hash):
     @property
     def lag(self) -> str:
         return self[0].lag
-
 
     def balancer(self):
         """Balances all conversions"""
