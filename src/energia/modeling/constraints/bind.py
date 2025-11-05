@@ -268,6 +268,7 @@ class Bind:
         # *3-5. spend(bin0) = 5000*capacity(bin0); spend(bin1) = 4000*capacity(bin1); spend(bin2) = 3000*capacity(bin2)
         # *6. spend = spend(bin0) + spend(bin1) + spend(bin2)
         # this takes care of *1 and *2
+        print(self.of)
         _ = self.of == dict(enumerate(self.parameter))
         # this takes care of *3-*6
 

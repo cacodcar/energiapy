@@ -136,7 +136,7 @@ class Sample:
         """Short Index"""
         return self.domain.index_short
 
-    @cached_property
+    @property
     def I(self) -> Idx:
         """gana index set (I)"""
         return self.domain.I

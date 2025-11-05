@@ -956,18 +956,7 @@ class Model:
         self.t0 = Periods()
         return self.t0
 
-        #     # if no periods exits yet, make the horizon
-        #     self.t0 = Periods()
-        #     if size == 1:
-        #         return self.periods[-1]
 
-        # if size > 1:
-        #     hrz = self.horizon
-        #     setattr(self, f"t{len(self.periods)}", self.horizon / size)
-
-        # return self.periods[-1]
-
-        # or create a default period
 
     def _l0(self) -> Location:
         """Return a default location"""
