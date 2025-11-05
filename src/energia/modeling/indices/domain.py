@@ -505,11 +505,9 @@ class Domain(_Hash):
         return self.name == str(other)
 
     def __lt__(self, other: Self) -> bool:
-        """Less than comparison based on the number of indices"""
         if len(self) < len(other):
             return True
         return False
 
     def __gt__(self, other: Self) -> bool:
-        """Greater than comparison based on the number of indices"""
         return other < self
