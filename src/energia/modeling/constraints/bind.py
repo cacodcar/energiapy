@@ -12,8 +12,8 @@ from ...utils.math import normalize
 logger = logging.getLogger("energia")
 
 if TYPE_CHECKING:
-    from gana import V
     from gana import P as Param
+    from gana import V
     from gana.sets.constraint import C
     from gana.sets.function import F
 

@@ -84,14 +84,14 @@ class _X(ABC, _Hash):
 
     def show(self, descriptive=False, category: str = ""):
         """Pretty print the component"""
-        if category:
-            for c in self.cons:
-                if c.category and c.category == category:
-                    c.show(descriptive)
 
+        if category:
+            _cons = [c for c in self.cons if c.category == category]
         else:
-            for c in self.cons:
-                c.show(descriptive)
+            _cons = self.cons
+
+        for c in _cons:
+            c.show(descriptive)
 
     def __eq__(self, other: object) -> bool:
         try:

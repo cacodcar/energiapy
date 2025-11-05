@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import cached_property
+from operator import ge, le
 from typing import TYPE_CHECKING
 
 from gana import I
@@ -162,19 +163,34 @@ class _Component(_X):
                     else:
                         sample = self._handle_x(aspect, sample)
 
+                    # operators
+                    oprs_map = {
+                        "max": le,
+                        "ub": le,
+                        "leq": le,
+                        "min": ge,
+                        "lb": ge,
+                        "geq": ge,
+                    }
+
+                    func = oprs_map.get(split_attr[1].lower())
+
                     if len(split_attr) == 1:
                         # if split returned just the aspect name
                         # then it's an equality
                         _ = sample == param
 
-                    # else, check if lower or upper bound
+                    elif func:
+                        _ = func(sample, param)
 
-                    elif split_attr[1] in ["max", "ub", "UB", "leq"]:
+                    # # else, check if lower or upper bound
 
-                        _ = sample <= param
+                    # elif split_attr[1] in ["max", "ub", "UB", "leq"]:
 
-                    elif split_attr[1] in ["min", "lb", "LB", "geq"]:
-                        _ = sample >= param
+                    #     _ = sample <= param
+
+                    # elif split_attr[1] in ["min", "lb", "LB", "geq"]:
+                    #     _ = sample >= param
 
                 else:
                     # error if type mismatch
