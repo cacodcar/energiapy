@@ -373,20 +373,6 @@ class Aspect:
 
             args = {c: kwargs[c] if c in kwargs else None for c in _comp_types}
 
-            # args = {
-            #     "indicator": None,
-            #     "commodity": None,
-            #     "player": None,
-            #     "process": None,
-            #     "storage": None,
-            #     "transport": None,
-            #     "periods": None,
-            #     "couple": None,
-            #     "location": None,
-            #     "linkage": None,
-            #     "lag": None,
-            #     "modes": None,
-            # }
 
             type_map = {
                 Periods: ("periods", "timed", False),

@@ -181,30 +181,6 @@ class Domain(_Hash):
     # -----------------------------------------------------
 
     @property
-    def isroot(self) -> bool:
-        """
-        This implies that the domain is of the form
-        <object, space, time>
-        """
-        if not self.lag and self.size == 3:
-            return True
-        return False
-
-    @property
-    def isrootroot(self) -> bool:
-        """
-        This implies that the domain is of the form
-        <object, network, horizon>
-        Thus, an element attached to this domain has the
-        lowest possible dimensionality
-        """
-        if self.isroot:
-            if is_(self.time, self.time.horizon):
-                if is_(self.space, self.space.network):
-                    return True
-        return False
-
-    @property
     def disposition(self) -> tuple[str, ...]:
         """Disposition"""
         return tuple(self._.keys())

@@ -10,10 +10,10 @@ from ...utils.decorators import timer
 from ...utils.math import normalize
 
 logger = logging.getLogger("energia")
+from gana import V
 
 if TYPE_CHECKING:
     from gana import P as Param
-    from gana import V
     from gana.sets.constraint import C
     from gana.sets.function import F
 
@@ -152,6 +152,7 @@ class Bind:
                 for i in _parameter
             ]
             return _parameter
+
         return self._parameter
 
     @cached_property
@@ -175,6 +176,7 @@ class Bind:
                     _parameter = [
                         p * self.domain.space.multiplier for p in self.parameter
                     ]
+
                 else:
                     _parameter = self.parameter * self.domain.space.multiplier
             else:
@@ -342,7 +344,13 @@ class Bind:
     def P(self):
         """Gets the parameter set"""
         if self.iscalc:
-            return self.cons.two.one
+            try:
+                return self.cons.two.one
+            # if multiplied by 1, F is not returned
+            # 1*V = V, i.e.
+            except AttributeError:
+                if isinstance(self.cons.two, V):
+                    return 1.0
         return self.cons.two
 
         # if self.leq:
