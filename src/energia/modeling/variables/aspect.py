@@ -351,25 +351,42 @@ class Aspect:
         return self.dispositions[item]
 
     def __call__(
-        self, *index: _X, domain: Domain | None = None, report=False
+        self, *index: _X, domain: Domain | None = None, report=False, **kwargs
     ) -> Sample:
 
         if not domain:
 
-            args = {
-                "indicator": None,
-                "commodity": None,
-                "player": None,
-                "process": None,
-                "storage": None,
-                "transport": None,
-                "periods": None,
-                "couple": None,
-                "location": None,
-                "linkage": None,
-                "lag": None,
-                "modes": None,
-            }
+            _comp_types = [
+                "indicator",
+                "commodity",
+                "player",
+                "process",
+                "storage",
+                "transport",
+                "periods",
+                "couple",
+                "location",
+                "linkage",
+                "lag",
+                "modes",
+            ]
+
+            args = {c: kwargs[c] if c in kwargs else None for c in _comp_types}
+
+            # args = {
+            #     "indicator": None,
+            #     "commodity": None,
+            #     "player": None,
+            #     "process": None,
+            #     "storage": None,
+            #     "transport": None,
+            #     "periods": None,
+            #     "couple": None,
+            #     "location": None,
+            #     "linkage": None,
+            #     "lag": None,
+            #     "modes": None,
+            # }
 
             type_map = {
                 Periods: ("periods", "timed", False),

@@ -203,7 +203,7 @@ class Storage(_Component):
     def _check_inventory_bound(self, space: Location) -> bool:
         """Check if the storage inventory is capacity bound at that location"""
         if self.stored not in self.inventory_aspect.bound_spaces:
-            _ = self.inventory_aspect(self.stored) == True
+            _ = self.inventory_aspect(commodity=self.stored) == True
 
         if space not in self.inventory_aspect.bound_spaces[self.stored]["ub"]:
             # check if the storage inventory has been bound at that location

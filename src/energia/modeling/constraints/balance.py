@@ -70,8 +70,14 @@ class Balance(_Hash):
                     if t > self.time
                 ]
 
+                # space can be linkage or location
                 if lower_times:
-                    _ = self.aspect(self.commodity, self.space, lower_times[0]) == True
+                    _ = (
+                        self.aspect(
+                            self.space, commodity=self.commodity, periods=lower_times[0]
+                        )
+                        == True
+                    )
 
         if not self.existing_aspects:
             # this checks whether a general self.commodity balance has been defined
@@ -223,7 +229,10 @@ class Balance(_Hash):
         """Checks if the balance constraint already exists"""
         if (
             (not self.samples and self.commodity)
-            or (self.aspect(self.commodity, self.time) not in self.existing_aspects)
+            or (
+                self.aspect(commodity=self.commodity, periods=self.time)
+                not in self.existing_aspects
+            )
             or (self.commodity.insitu)
         ):
             return False

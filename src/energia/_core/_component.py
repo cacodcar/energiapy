@@ -183,15 +183,6 @@ class _Component(_X):
                     elif func:
                         _ = func(sample, param)
 
-                    # # else, check if lower or upper bound
-
-                    # elif split_attr[1] in ["max", "ub", "UB", "leq"]:
-
-                    #     _ = sample <= param
-
-                    # elif split_attr[1] in ["min", "lb", "LB", "geq"]:
-                    #     _ = sample >= param
-
                 else:
                     # error if type mismatch
                     raise AttributeError(
