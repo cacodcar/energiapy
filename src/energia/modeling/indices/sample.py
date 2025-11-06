@@ -351,6 +351,7 @@ class Sample:
             self._inform()
 
         var = getattr(self.program, self.aspect.name)(*self.I)
+        print('asd', var.map)
         return var
 
     def Vinc(self, parameters: float | list = None, length: int = None) -> V:

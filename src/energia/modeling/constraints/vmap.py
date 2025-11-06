@@ -327,7 +327,14 @@ class Map:
         varname = (
             f"x_{self.aspect.name}" if (msum and self.reporting) else self.aspect.name
         )
-        v = getattr(self.program, varname)
+
+        _ = self.aspect(*domain) == True  # ensure variable is created
+        print(self.aspect(*domain).domain)
+        print(self.aspect.domains)
+
+        v = getattr(self.program, varname)  # (*domain.I)
+
+        print(v.map)
 
         if tsum:
             # if the domain has been mapped to but this is a time sum
