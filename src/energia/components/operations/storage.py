@@ -227,7 +227,9 @@ class Storage(_Component):
         return self.horizon
 
     @timer(logger, kind='assume-inventory', level=logging.INFO)
-    def _check_inventory_bound(self, space: Location) -> tuple[Self, Location, Periods]:
+    def _check_inventory_bound(
+        self, space: Location
+    ) -> tuple[Self, Location, Periods] | bool:
         """Check if the storage inventory is capacity bound at that location"""
 
         self._init_inventory_aspect()
