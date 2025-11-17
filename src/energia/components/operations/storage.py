@@ -162,7 +162,7 @@ class Storage(_Component):
     @property
     def basis(self) -> Resource:
         """Base resource"""
-        return self.discharge.primary_conversion.basis
+        return self.discharge.primary_conversion.resource
 
     @property
     def storage_cost(self) -> Sample:
@@ -272,7 +272,10 @@ class Storage(_Component):
         discharging_args: dict | None = None,
         storage_args: dict | None = None,
     ):
-        """Birth the constituents of the storage component"""
+        """
+        Births the constituents of the storage component
+        Sets them on the Model
+        """
         if not self._birthed:
             self.stored = Stored(**storage_args if storage_args else {})
 
@@ -282,7 +285,6 @@ class Storage(_Component):
                 storage=self, **discharging_args if discharging_args else {}
             )
 
-            # Set them on the model
             setattr(self.model, f"{self.name}.charge", self.charge)
             setattr(self.model, f"{self.name}.discharge", self.discharge)
             setattr(self.model, f"{self.name}.stored", self.stored)
@@ -317,6 +319,14 @@ class Storage(_Component):
 
         return _charging_args, _discharging_args, _storage_args
 
+    def _set_conversions(self, resource: Stored | Conversion):
+        """Sets the conversions on the storage component"""
+        _ = self.charge(self.stored) == -resource
+
+        self.discharge.primary_conversion.expect = self.stored
+
+        self.stored.inv_of = resource
+
     def __setattr__(self, name, value):
 
         object.__setattr__(self, name, value)
@@ -347,10 +357,6 @@ class Storage(_Component):
 
         self._birth_constituents()
 
-        _ = self.charge(self.stored) == -resource
-
-        self.discharge.primary_conversion.expect = self.stored
-
-        self.stored.inv_of = resource
+        self._set_conversions(resource)
 
         return self.discharge(resource)
