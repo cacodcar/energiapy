@@ -18,6 +18,7 @@ from ..components.commodities.material import Material
 from ..components.commodities.resource import Resource
 from ..components.game.couple import Interact
 from ..components.game.player import Player
+
 # from ..components.graph.edge import Edge
 # from ..components.graph.node import Node
 from ..components.impact.categories import Economic, Environ, Social
@@ -39,9 +40,17 @@ from ..dimensions.system import System
 from ..dimensions.time import Time
 from ..library.aliases import aspect_aliases
 from ..library.instructions import costing_commodity, costing_operation
-from ..library.recipes import (capacity_sizing, economic, environmental,
-                               free_movement, inventory_sizing, operating,
-                               social, trade, usage)
+from ..library.recipes import (
+    capacity_sizing,
+    economic,
+    environmental,
+    free_movement,
+    inventory_sizing,
+    operating,
+    social,
+    trade,
+    usage,
+)
 from ..modeling.parameters.instruction import Instruction
 from ..modeling.variables.control import Control
 from ..modeling.variables.recipe import Recipe
@@ -871,19 +880,7 @@ class Model:
         Solve the multiparametric program
 
         :param using: The solving method to use. Defaults to "combinatorial".
-        :type using: Literal[
-            "combinatorial",
-            "combinatorial_parallel",
-            "combinatorial_parallel_exp",
-            "graph",
-            "graph_exp",
-            "graph_parallel",
-            "graph_parallel_exp",
-            "combinatorial_graph",
-            "geometric",
-            "geometric_parallel",
-            "geometric_parallel_exp",
-        ], optional
+        :type using: Literal
         """
 
         self.program.solve(using=using)

@@ -10,7 +10,7 @@ domains. For more research on advancing computational methods in modeling and op
 see `Multiparameteric Optimization and Control (Pistikopoulos) Group <https://parametric.tamu.edu>`_. 
 
 
-Direct any queries regarding the implementation or theoretical background to Rahul Kakodkar (cacodcar@gmail.com).
+Direct any queries regarding the implementation or theoretical background to `Rahul Kakodkar <http://www.cacodcar.com>`_.
 
 
 .. seealso::
