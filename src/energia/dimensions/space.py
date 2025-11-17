@@ -131,7 +131,7 @@ class Space(_Dimension):
     ) -> list[Location]:
         """Return all locations at lower hierarchy than loc"""
         if loc.hierarchy + 1 in hierarchy:
-            return [l for l in hierarchy[loc.hierarchy + 1] if l in loc.has]
+            return [lc for lc in hierarchy[loc.hierarchy + 1] if lc in loc.has]
         return []
 
     def _upper(
@@ -139,7 +139,7 @@ class Space(_Dimension):
     ) -> Location | None:
         """Return Location at higher hierarchy than loc"""
         try:
-            return [l for l in hierarchy[loc.hierarchy - 1] if loc in l.has][0]
+            return [lc for lc in hierarchy[loc.hierarchy - 1] if loc in lc.has][0]
         except IndexError:
             return None
 

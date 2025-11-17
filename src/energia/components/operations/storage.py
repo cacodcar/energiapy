@@ -257,7 +257,7 @@ class Storage(_Component):
         for location, time in space_times:
             self.construction.write(location, time)
 
-        return self, (l for l, _ in space_times)
+        return self, (spc for spc, _ in space_times)
 
     @timer(logger, kind='locate')
     def locate(self, *spaces: Location):

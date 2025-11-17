@@ -5,13 +5,14 @@ from __future__ import annotations
 import logging
 from functools import cached_property
 from typing import TYPE_CHECKING
+from gana import V
+from gana.sets.function import F
 
 from ...utils.decorators import timer
 from ...utils.math import normalize
 
 logger = logging.getLogger("energia")
-from gana import V
-from gana.sets.function import F
+
 
 if TYPE_CHECKING:
     from gana import P as Param
