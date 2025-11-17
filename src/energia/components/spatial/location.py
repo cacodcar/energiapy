@@ -184,16 +184,17 @@ class Location(_X):
         """
         # this prints out all the links between the two locations
         links = []
+
         for link in self.space.linkages:
-            source, sink = False, False
+            # source, sink = False, False
 
-            if is_(self, link.source) and is_(location, link.sink):
-                source, sink = self, location
+            forward = is_(self, link.source) and is_(location, link.sink)
+            reverse = is_(self, link.sink) and is_(location, link.source)
 
-            if is_(self, link.sink) and is_(location, link.source):
-                source, sink = location, self
+            if forward or reverse:
 
-            if source and sink:
+                source, sink = (self, location) if forward else (location, self)
+
                 links.append(link)
                 if print_link:
                     print(f"{source} is source and {sink} is sink in {link}")
