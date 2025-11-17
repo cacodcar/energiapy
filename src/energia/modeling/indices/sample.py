@@ -481,7 +481,7 @@ class Sample(_Hash):
             return getattr(self.program, self.aspect.name)(*self.domain.I)
 
         except AttributeError:
-            _ = self == True
+            _ = self > 0
             return getattr(self.program, self.aspect.name)(*self.domain.I)
 
         except KeyError:
@@ -660,7 +660,7 @@ class Sample(_Hash):
 
     def __ge__(self, other):
 
-        if isinstance(other, (int, float)) and other == 0:
+        if self.aspect.nn and isinstance(other, (int, float)) and other == 0:
             # if a zero lower bound is given
             # just declare the variable
             # it will be non-negative by default
@@ -686,7 +686,7 @@ class Sample(_Hash):
 
         else:
             if callable(self.of):
-                _ = self.of(*self.domain.index_primary[1:]) == True
+                _ = self.of(*self.domain.index_primary[1:]) > 0
             Bind(sample=self, parameter=other, eq=True, forall=self._forall)
 
     def __gt__(self, other):
