@@ -265,7 +265,7 @@ def design_scheduling_material_modes():
     )
 
     m.declare(Resource, ["power", "wind", "solar"])
-    _ = m.solar.consume == True
+    _ = m.solar.consume >= 0
     _ = m.wind.consume >= 0
     _ = m.power.release.prep(180) >= [0.6, 0.7, 0.8, 0.3]
 
