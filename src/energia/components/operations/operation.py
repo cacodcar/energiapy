@@ -147,7 +147,7 @@ class Operation(_Component):
         if space not in self.capacity_aspect.bound_spaces[self]["ub"]:
             # check if operational capacity has been bound
             # this is not a check, this generates a constraint
-            _ = self.capacity_sample(space, self.horizon) == True
+            _ = self.capacity_sample(space, self.horizon) >= 0
 
             return self, space, self.horizon
 

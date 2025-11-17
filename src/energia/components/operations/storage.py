@@ -193,7 +193,7 @@ class Storage(_Component):
         if space not in self.capacity_aspect.bound_spaces[self.stored]["ub"]:
             # check if the storage capacity has been bound at that location
             # Note: this is not a check, this generates a constraint
-            _ = self.capacity(space, self.horizon) == True
+            _ = self.capacity(space, self.horizon) >= 0
 
             return self, space, self.horizon
 
@@ -203,7 +203,7 @@ class Storage(_Component):
         """Initializes the inventory aspect bound spaces for the stored resource"""
         if self.stored not in self.inventory_aspect.bound_spaces:
 
-            _ = self.inventory_aspect(self.stored) == True
+            _ = self.inventory_aspect(self.stored) >= 0
 
     def _get_times(self, space: Location) -> list[Periods]:
         """Gets times where inventory is defined"""

@@ -228,7 +228,7 @@ class Balance(_Hash):
         lower_times = [t for t in _balances if t > self.time] if _balances else False
 
         if lower_times:
-            _ = self.aspect(self.commodity, self.space, lower_times[0]) == True
+            _ = self.aspect(self.commodity, self.space, lower_times[0]) >= 0
 
     def __eq__(self, other: Self):
         return is_(self.aspect, other.aspect) and self.domain == other.domain
