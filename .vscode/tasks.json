@@ -21,6 +21,27 @@
             }
         },
         {
+            "label": "Radon: Cyclomatic Complexity (Below B)",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-m",
+                "radon",
+                "cc",
+                "src",
+                "--min",
+                "B",
+                "-s",
+                "-a"
+            ],
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "echo": true
+            }
+        },
+        {
             "label": "Radon: Maintainability Index",
             "type": "shell",
             "command": "python",

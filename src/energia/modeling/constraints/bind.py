@@ -5,13 +5,14 @@ from __future__ import annotations
 import logging
 from functools import cached_property
 from typing import TYPE_CHECKING
+from gana import V
+from gana.sets.function import F
 
 from ...utils.decorators import timer
 from ...utils.math import normalize
 
 logger = logging.getLogger("energia")
-from gana import V
-from gana.sets.function import F
+
 
 if TYPE_CHECKING:
     from gana import P as Param
@@ -139,16 +140,25 @@ class Bind:
         # returned for @timer
         return self.sample, self.rel
 
-    @cached_property
-    def parameter(self):
-        """Parameter bound of the bind constraint"""
+    def _listed(self):
+        """Gets the parameter as a list if needed"""
+        if not isinstance(self._parameter, list) and self.forall:
+            return [self._parameter] * len(self.forall)
+        return self._parameter
 
+    def _normalized(self, _parameter):
+        """Gets the normalized parameter if needed"""
+        if self.norm:
+            return normalize(_parameter)
+        return _parameter
+
+    def _nominalized(self, _parameter):
+        """Gets the nominalized parameter if needed"""
         if self.nominal:
             # if a nominal value for the self.parameter is passed
             # this is essentially the expectation
             # skipping an instance check here
             # if a non iterable is passed, let an error be raised
-            _parameter = normalize(self._parameter) if self.norm else self._parameter
 
             # if the sample needs to be normalized
             _parameter = [
@@ -160,7 +170,21 @@ class Bind:
                 for i in _parameter
             ]
             return _parameter
-        return self._parameter
+        return _parameter
+
+    @cached_property
+    def parameter(
+        self,
+    ) -> (
+        list[float]
+        | float
+        | dict[float, float]
+        | tuple[float, float]
+        | list[tuple[float, float]]
+    ):
+        """Parameter bound of the bind constraint"""
+
+        return self._nominalized(self._normalized(self._listed()))
 
     @cached_property
     def lhs(self):
@@ -172,44 +196,45 @@ class Bind:
         # .X(), .Vb() need time and space
         return self.sample.V(self.parameter)
 
+    def _rhs_w_bound(self) -> V | F:
+        """When the rhs is bound by a variable"""
+        _bound = self.sample.X(self.parameter) if self.report else self.sample.Vb()
+        return self.parameter * _bound
+
+    def _rhs_w_binary(self) -> V | F:
+        """When the rhs is bound by a binary variable"""
+        _bound = self.parameter * self.sample.X(self.parameter)
+        self.aspect.update(self.domain, reporting=True)
+        return _bound
+
+    def _handle_multiplier(self):
+        """Gets the parameter with multiplier if needed"""
+        if isinstance(self.parameter, list):
+            return [p * self.domain.space.multiplier for p in self.parameter]
+
+        return self.parameter * self.domain.space.multiplier
+
+    def _rhs_w_multiplier(self) -> V | F | Param:
+        """When the rhs is bound by a multiplier"""
+        if self.aspect.use_multiplier:
+            _bound = self._handle_multiplier()
+        else:
+            _bound = self.parameter
+
+        return _bound * self.of(*self.domain.index_spatiotemporal).V(self.parameter)
+
     @property
     def rhs(self) -> V | F | Param:
         """Right hand side of the bind constraint"""
         if self.of:
-            # if the dependent variable is not set, creates issues.
-            # ------if a calculation is being done
-            def _parameter():
-                """Gets the parameter with multiplier if needed"""
-                if self.aspect.use_multiplier:
-                    if isinstance(self.parameter, list):
-                        return [
-                            p * self.domain.space.multiplier for p in self.parameter
-                        ]
-
-                    return self.parameter * self.domain.space.multiplier
-                return self.parameter
-
-            return _parameter() * self.of(*self.domain.index_spatiotemporal).V(
-                self.parameter
-            )
+            return self._rhs_w_multiplier()
 
         if self.aspect.bound:
-            # ------if variable bound
-            # ------if variable bound and reported
-            # we do not want a bi-linear term
-            _bound = self.sample.X(self.parameter) if self.report else self.sample.Vb()
-
-            return self.parameter * _bound
-
-            # ------if just variable bound
+            return self._rhs_w_bound()
 
         if self.report or self.domain.modes is not None:
-            # ------if  self.parameter bound and reported or has modes
-            # create reporting variable write v <= p*x
-            _return = self.parameter * self.sample.X(self.parameter)
-            self.aspect.update(self.domain, reporting=True)
-            return _return
-        # ------if just self.parameter bound
+            return self._rhs_w_binary()
+
         return self.parameter
 
     @cached_property
@@ -239,15 +264,7 @@ class Bind:
 
         for n, idx in enumerate(self.forall):
 
-            lhs = self.sample(idx)
-
-            try:
-                # if any iterable vector
-                rhs = self.parameter[n]
-            except TypeError:
-                # if not repeat the same value
-                # over all elements
-                rhs = self.parameter
+            lhs, rhs = self.sample(idx), self.parameter[n]
 
             if self.leq:
                 _ = lhs <= rhs

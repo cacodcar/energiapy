@@ -155,25 +155,27 @@ class Periods(_X):
 
     def howmany(self, of: Periods):
         """How many periods make this period"""
-        try:
-            return self._howmany[of]
-        except KeyError:
-            try:
-                _return = compare(self.tree, of)
-            except NotFoundError:
-                try:
-                    _return = 1 / compare(of.tree, self)
-                except NotFoundError:
-                    try:
-                        _return = self.size / compare(of.tree, self.of)
-                    except NotFoundError:
-                        try:
-                            _return = compare(self.tree, of.of) / of.size
-                        except NotFoundError:
-                            raise ValueError(f"No common basis between {self} and {of}")
 
-        self._howmany[of] = _return
-        return _return
+        # Cached result?
+        if of in self._howmany:
+            return self._howmany[of]
+
+        attempts = [
+            lambda: compare(self.tree, of),
+            lambda: 1 / compare(of.tree, self),
+            lambda: self.size / compare(of.tree, self.of),
+            lambda: compare(self.tree, of.of) / of.size,
+        ]
+
+        for attempt in attempts:
+            try:
+                result = attempt()
+                self._howmany[of] = result
+                return result
+            except NotFoundError:
+                continue
+
+        raise ValueError(f"No common basis between {self} and {of}")
 
     def __mul__(self, times: int | float):
 

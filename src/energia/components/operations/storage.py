@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from ..._core._component import _Component
 from ...modeling.parameters.conversion import Conversion
@@ -199,30 +199,44 @@ class Storage(_Component):
 
         return False
 
-    @timer(logger, kind='assume-inventory', level=logging.INFO)
-    def _check_inventory_bound(self, space: Location) -> bool:
-        """Check if the storage inventory is capacity bound at that location"""
+    def _init_inventory_aspect(self):
+        """Initializes the inventory aspect bound spaces for the stored resource"""
         if self.stored not in self.inventory_aspect.bound_spaces:
+
             _ = self.inventory_aspect(self.stored) == True
 
+    def _get_times(self, space: Location) -> list[Periods]:
+        """Gets times where inventory is defined"""
+        try:
+            times = list(
+                [
+                    t
+                    for t in self.model.balances[self.stored.inv_of][space]
+                    if self.model.balances[self.stored.inv_of][space][t]
+                ],
+            )
+        except KeyError:
+            times = []
+
+        return times
+
+    def _filter_time(self, times: list[Periods]) -> Periods:
+        """This the final returner of time"""
+        if times:
+            return min(times)
+        return self.horizon
+
+    @timer(logger, kind='assume-inventory', level=logging.INFO)
+    def _check_inventory_bound(
+        self, space: Location
+    ) -> tuple[Self, Location, Periods] | bool:
+        """Check if the storage inventory is capacity bound at that location"""
+
+        self._init_inventory_aspect()
+
         if space not in self.inventory_aspect.bound_spaces[self.stored]["ub"]:
-            # check if the storage inventory has been bound at that location
-            try:
-                times = list(
-                    [
-                        t
-                        for t in self.model.balances[self.stored.inv_of][space]
-                        if self.model.balances[self.stored.inv_of][space][t]
-                    ],
-                )
-            except KeyError:
-                times = []
-            # write the conversion balance at
-            # densest temporal scale in that space
-            if times:
-                time = min(times)
-            else:
-                time = self.horizon
+
+            time = self._filter_time(self._get_times(space))
 
             # if not just write opr_{pro, loc, horizon} <= capacity_{pro, loc, horizon}
             _ = self.inventory(space, time) <= 1
@@ -243,7 +257,7 @@ class Storage(_Component):
         for location, time in space_times:
             self.construction.write(location, time)
 
-        return self, (l for l, _ in space_times)
+        return self, (spc for spc, _ in space_times)
 
     @timer(logger, kind='locate')
     def locate(self, *spaces: Location):
@@ -327,6 +341,28 @@ class Storage(_Component):
 
         self.stored.inv_of = resource
 
+    def _handle_nonnumeric_conversion(self):
+        """
+        Handles non-numeric conversions by setting a default conversion
+        This comes into play when storage has dependent conversions
+        Take the example of hydrogen storage requiring power
+        In which case, besides the efficiency, the power conversion will be passed
+        """
+        for conversion in self.conversions:
+            if not isinstance(conversion, int | float):
+                conversion.operation = self
+
+    def _handle_held_conversion(self):
+        """
+        Handles non-piecewise linear conversions by setting a default conversion
+        This comes into play when storage has dependent conversions
+        Take the example of hydrogen storage requiring power
+        In which case, besides the efficiency, the power conversion will be passed
+        """
+        conversion = self.conversions[0]
+        if conversion.hold is not None:
+            _ = self(conversion.resource) == conversion.hold
+
     def __setattr__(self, name, value):
 
         object.__setattr__(self, name, value)
@@ -337,18 +373,10 @@ class Storage(_Component):
 
             if self.conversions:
 
-                # if len(self.conversions) > 1:
-                #     self.modes =
-
-                for conversion in self.conversions:
-                    if not isinstance(conversion, int | float):
-                        conversion.operation = self
+                self._handle_nonnumeric_conversion()
 
                 if len(self.conversions) == 1:
-                    conversion = self.conversions[0]
-
-                    if conversion.hold is not None:
-                        _ = self(conversion.resource) == conversion.hold
+                    self._handle_held_conversion()
 
         super().__setattr__(name, value)
 
