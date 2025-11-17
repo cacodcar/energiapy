@@ -481,7 +481,7 @@ class Sample(_Hash):
             return getattr(self.program, self.aspect.name)(*self.domain.I)
 
         except AttributeError:
-            _ = self > 0
+            _ = self >= 0
             return getattr(self.program, self.aspect.name)(*self.domain.I)
 
         except KeyError:
@@ -686,7 +686,7 @@ class Sample(_Hash):
 
         else:
             if callable(self.of):
-                _ = self.of(*self.domain.index_primary[1:]) > 0
+                _ = self.of(*self.domain.index_primary[1:]) >= 0
             Bind(sample=self, parameter=other, eq=True, forall=self._forall)
 
     def __gt__(self, other):
