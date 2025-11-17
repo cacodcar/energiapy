@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from functools import cached_property
 from typing import TYPE_CHECKING
+
 from gana import V
 from gana.sets.function import F
 

@@ -659,7 +659,15 @@ class Sample(_Hash):
         Bind(sample=self, parameter=other, leq=True, forall=self._forall)
 
     def __ge__(self, other):
-        Bind(sample=self, parameter=other, geq=True, forall=self._forall)
+
+        if isinstance(other, (int, float)) and other == 0:
+            # if a zero lower bound is given
+            # just declare the variable
+            # it will be non-negative by default
+            # and will begin a commodity balance
+            self.V()
+        else:
+            Bind(sample=self, parameter=other, geq=True, forall=self._forall)
 
     def __eq__(self, other):
 
