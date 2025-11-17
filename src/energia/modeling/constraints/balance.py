@@ -112,6 +112,12 @@ class Balance(_Hash):
                 # cannot lag a single time period
                 return 0
 
+            print(
+                self.aspect,
+                self.aspect.domains,
+                self.domain.I,
+                self.domain.edit({"lag": -1 * self.time, "periods": None}).I,
+            )
             return (
                 self(*self.domain).V()
                 - self(*self.domain.edit({"lag": -1 * self.time, "periods": None})).V()
