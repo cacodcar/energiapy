@@ -275,7 +275,7 @@ class Storage(_Component):
         self.charge.locate(*spaces)
         self.discharge.locate(*spaces)
 
-        if self.construction is not None:
+        if self.construction:
             self.write_construction(self.space_times)
 
         return self, spaces
