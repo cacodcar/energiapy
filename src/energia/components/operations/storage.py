@@ -10,6 +10,7 @@ from ..._core._component import _Component
 from ...modeling.parameters.conversion import Conversion
 from ...modeling.parameters.conversions import Construction
 from ...utils.decorators import timer
+from ...utils.modeling import retry
 from ..commodities.resource import Resource
 from .process import Process
 
@@ -238,8 +239,16 @@ class Storage(_Component):
 
             time = self._filter_time(self._get_times(space))
 
+            #! FIXME: not entirely sure why retry is needed here
             # if not just write opr_{pro, loc, horizon} <= capacity_{pro, loc, horizon}
-            _ = self.inventory(space, time) <= 1
+            # _ = self.inventory(space, time) <= 1
+
+            _ = retry(
+                lambda: self.inventory(space, time) <= 1,
+                attempts=2,
+                exceptions=KeyError,
+            )
+
             return self, space, time
 
         return False
@@ -265,6 +274,10 @@ class Storage(_Component):
         # update the locations at which the storage exists
 
         # get location, time tuples where operation is defined
+
+        if not spaces:
+            spaces = (self.network,)
+
         for space in spaces:
 
             self._check_capacity_bound(space)
