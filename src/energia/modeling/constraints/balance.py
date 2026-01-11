@@ -114,7 +114,6 @@ class Balance(_Hash):
                 self(*self.domain).V()
                 - self(*self.domain.edit({"lag": -1 * self.time, "periods": None})).V()
             )
-
         return self(*self.domain).V()
 
     @timer(logger, "balance-init")

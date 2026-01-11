@@ -285,7 +285,7 @@ class Aspect:
 
     def Map(self, domain: Domain, reporting: bool = False):
         """Map the aspect to the domain"""
-
+        
         MapCons(aspect=self, domain=domain, reporting=reporting)
 
     def Balance(self, domain: Domain):

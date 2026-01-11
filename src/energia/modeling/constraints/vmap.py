@@ -159,19 +159,8 @@ class Map:
         """
         for dp in denser_periods:
             if dp in self.dispositions[self.space] and is_(self.time.of, dp):
-                binds_dict = self.dispositions[self.space][dp]
-                # here I am re creating Bind objects
-                # from the dict of the form {aspect: {component: {aspect: {component: {...}}}}}
-                # there has to be a way to avoid this
-                # I make a list  of bounds as such [aspect(component), aspect(component), ...]
-                samples = [
-                    aspect(component)
-                    for aspect, comp_dict in binds_dict.items()
-                    for component in comp_dict
-                ]
-                from_domain = self.domain.copy()
-                from_domain.periods, from_domain.samples = dp, samples
-                self.write(from_domain, self.domain, tsum=True)
+
+                self.write(self.domain.edit({"periods": dp}), self.domain, tsum=True)
 
     def _map_across_time(self):
         """
@@ -344,13 +333,19 @@ class Map:
             # if the domain has been mapped to but this is a time sum
             # we need to first map time
             # and then add it to an existing map at a lower domain
-            return sigma(v(*domain.I), domain.time.i)
+            try:
+                return sigma(v(*domain.I), over=domain.time.i)
+            except KeyError:
+
+                return sigma(
+                    v(*self._bridge_domain(domain.periods).I), over=domain.periods.i
+                )
         if msum:
             # if the domain has been mapped to but this is a mode sum
             # we need to first map modes
             # and then add it to an existing map at a lower domain
 
-            return sigma(v(*domain.I), domain.modes.I)
+            return sigma(v(*domain.I), over=domain.modes.I)
         # the copy is important since otherwise, the printing will take
         # the update index if the variable is mutated
 
@@ -384,6 +379,28 @@ class Map:
         # this is the disposition of the variable to be mapped
         # through time and space
         self.time, self.space = self.domain.periods, self.domain.space
+
+    # -------------------------------------------------------------------#
+    # Error Handling
+    # -------------------------------------------------------------------#
+
+    def _bridge_domain(self, time: Periods) -> Domain:
+        """Creates a brigde domain for time mapping
+
+        This is needed when the declared domains are, for example:
+
+        spend(...year) and spend(...operate, day)
+
+        what we need is basically, spend(...year) = sum(spend(...operate, day) over days in year)
+        instead of spend(...year) = sum(spend(.., day) over days in operate)
+
+        """
+        samples = [
+            aspect(component)
+            for aspect, comp_dict in self.dispositions[self.space][time].items()
+            for component in comp_dict
+        ]
+        return self.domain.edit({"periods": time, "samples": samples})
 
     def __call__(self, *index: _X):
         return self.aspect(*index)

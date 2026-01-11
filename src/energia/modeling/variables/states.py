@@ -91,7 +91,6 @@ class EndoStream(Stream):
         Stream.__post_init__(self)
 
     def update(self, domain: Domain, reporting: bool = False):
-
         self.Map(domain=domain, reporting=reporting)
         if not domain.modes:
             self.Balance(domain=domain)
@@ -119,5 +118,4 @@ class IndStream(Stream):
         Stream.__post_init__(self)
 
     def update(self, domain: Domain, reporting: bool = False):
-
         self.Map(domain=domain, reporting=reporting)
