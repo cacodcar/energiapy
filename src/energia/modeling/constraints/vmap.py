@@ -50,6 +50,17 @@ class Map:
         if self.domain.lag:
             return
 
+        self.differences = {}
+
+        for d in self.aspect.domains:
+            diff = self.domain - d
+            if diff and not "primary" in diff:
+                self.differences[d] = diff
+        print("=====")
+        print(self.aspect, domain)
+        print(self.differences)
+        print("=====")
+
         # these are periods denser and sparser than the current domain
         self._map_across_time()
 
@@ -159,9 +170,6 @@ class Map:
         for dp in denser_periods:
             # if dp in self.dispositions[self.space] and is_(self.time.of, dp):
             if dp in self.dispositions[self.space]:
-                print(
-                    "ccc", self.aspect, self.domain.edit({"periods": dp}), self.domain
-                )
                 self.write(self.domain.edit({"periods": dp}), self.domain, tsum=True)
 
     def _map_across_time(self):
@@ -336,28 +344,14 @@ class Map:
             f"x_{self.aspect.name}" if (msum and self.reporting) else self.aspect.name
         )
         v = getattr(self.program, varname)
-        print("=====", self.aspect, domain, tsum, msum)
         if tsum:
             # if the domain has been mapped to but this is a time sum
             # we need to first map time
             # and then add it to an existing map at a lower domain
             try:
-                print("bbb", self.aspect, domain)
                 return sigma(v(*domain.I), over=domain.time.i)
             except KeyError:
-                _bridge = self._bridge_domain(domain)
-                print("aaa", self.aspect, domain, self._bridge_domain(domain))
-                try:
-                    return sigma(
-                        v(*_bridge.I),
-                        over=domain.periods.i,
-                    )
-                except KeyError:
-                    _ = self.aspect(*_bridge).V() >= 0
-                    return sigma(
-                        v(*_bridge.I),
-                        over=domain.periods.i,
-                    )
+                return sigma(v(*self._bridge(domain).I), over=domain.time.i)
 
         if msum:
             # if the domain has been mapped to but this is a mode sum
@@ -403,7 +397,7 @@ class Map:
     # Error Handling
     # -------------------------------------------------------------------#
 
-    def _bridge_domain(self, domain: Domain) -> Domain:
+    def _bridge(self, domain: Domain) -> Domain:
         """Creates a brigde domain for time mapping
 
         This is needed when the declared domains are, for example:
