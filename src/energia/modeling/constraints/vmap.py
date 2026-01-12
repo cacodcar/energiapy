@@ -50,21 +50,6 @@ class Map:
         if self.domain.lag:
             return
 
-        self.differences = {}
-
-        for d in self.aspect.domains:
-            diff = self.domain - d
-            if diff and not "primary" in diff:
-                self.differences[d] = diff
-
-        print("=====")
-        print(self.aspect, domain)
-        print(self.differences)
-        print("=====")
-
-        # if not self.differences:
-        #     return
-
         # these are periods denser and sparser than the current domain
         self._map_across_time()
 
@@ -174,6 +159,8 @@ class Map:
         for dp in denser_periods:
             # if dp in self.dispositions[self.space] and is_(self.time.of, dp):
             if dp in self.dispositions[self.space]:
+                if self.dispositions[self.space][dp]:
+                    continue
                 self.write(self.domain.edit({"periods": dp}), self.domain, tsum=True)
 
     def _map_across_time(self):
@@ -355,6 +342,7 @@ class Map:
             try:
                 return sigma(v(*domain.I), over=domain.time.i)
             except KeyError:
+                print("aaaaaa", self.aspect, domain)
                 return sigma(v(*self._bridge(domain).I), over=domain.time.i)
 
         if msum:
@@ -419,6 +407,19 @@ class Map:
             for component in comp_dict
         ]
         return self.domain.edit({"periods": time, "samples": samples})
+
+    def _differences(self) -> dict[Domain, list[str]]:
+        """
+        Compares the current domain with all other domains of the aspect
+        """
+        differences = {}
+
+        for d in self.aspect.domains:
+            diff = self.domain - d
+            if diff and not "primary" in diff:
+                differences[d] = diff
+
+        return differences
 
     def __call__(self, *index: _X):
         return self.aspect(*index)
