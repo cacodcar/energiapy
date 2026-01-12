@@ -217,7 +217,6 @@ class Balance(_Hash):
         _balances = self.balances[self.commodity][self.space]
 
         lower_times = [t for t in _balances if t > self.time] if _balances else False
-
         if lower_times:
             _ = self.aspect(self.commodity, self.space, lower_times[0]) >= 0
 

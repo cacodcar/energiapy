@@ -133,9 +133,7 @@ class Map:
 
     @cached_property
     def maps(self) -> dict[Domain, list[Domain]]:
-        return (
-            self.aspect.maps_report if self.reporting is not None else self.aspect.maps
-        )
+        return self.aspect.maps_report if self.reporting else self.aspect.maps
 
     def _map_to_sparser_time(self, sparser_periods: list[Periods]):
         """
@@ -147,7 +145,8 @@ class Map:
         for sp in sparser_periods:
             # check if the aspect has been defined for a sparser period
             # this creates a map from this domain to a sparser domain
-            if sp in self.dispositions[self.space] and is_(sp.of, self.time):
+            # if sp in self.dispositions[self.space] and is_(sp.of, self.time):
+            if sp in self.dispositions[self.space]:
                 self.write(self.domain, self.domain.edit({"periods": sp}), tsum=True)
 
     def _map_from_denser_time(self, denser_periods: list[Periods]):
@@ -158,8 +157,11 @@ class Map:
         :type denser_periods: list[Periods]
         """
         for dp in denser_periods:
-            if dp in self.dispositions[self.space] and is_(self.time.of, dp):
-
+            # if dp in self.dispositions[self.space] and is_(self.time.of, dp):
+            if dp in self.dispositions[self.space]:
+                print(
+                    "ccc", self.aspect, self.domain.edit({"periods": dp}), self.domain
+                )
                 self.write(self.domain.edit({"periods": dp}), self.domain, tsum=True)
 
     def _map_across_time(self):
@@ -273,8 +275,14 @@ class Map:
         else:
             self.maps[what][to_domain].append(from_domain)
             return True
-        if what in ["samples", "modes"]:
-            return True
+        # if what in ["samples", "modes"]:
+        #     return True
+
+    def _check_samples(self, to_domain: Domain, from_domain: Domain) -> None:
+        """
+        Checks if constraints have been written for child samples
+        or for parent samples
+        """
 
     def _special_modes_check(self, from_domain: Domain, to_domain: Domain) -> None:
         """
@@ -328,18 +336,29 @@ class Map:
             f"x_{self.aspect.name}" if (msum and self.reporting) else self.aspect.name
         )
         v = getattr(self.program, varname)
-
+        print("=====", self.aspect, domain, tsum, msum)
         if tsum:
             # if the domain has been mapped to but this is a time sum
             # we need to first map time
             # and then add it to an existing map at a lower domain
             try:
+                print("bbb", self.aspect, domain)
                 return sigma(v(*domain.I), over=domain.time.i)
             except KeyError:
+                _bridge = self._bridge_domain(domain)
+                print("aaa", self.aspect, domain, self._bridge_domain(domain))
+                try:
+                    return sigma(
+                        v(*_bridge.I),
+                        over=domain.periods.i,
+                    )
+                except KeyError:
+                    _ = self.aspect(*_bridge).V() >= 0
+                    return sigma(
+                        v(*_bridge.I),
+                        over=domain.periods.i,
+                    )
 
-                return sigma(
-                    v(*self._bridge_domain(domain.periods).I), over=domain.periods.i
-                )
         if msum:
             # if the domain has been mapped to but this is a mode sum
             # we need to first map modes
@@ -384,7 +403,7 @@ class Map:
     # Error Handling
     # -------------------------------------------------------------------#
 
-    def _bridge_domain(self, time: Periods) -> Domain:
+    def _bridge_domain(self, domain: Domain) -> Domain:
         """Creates a brigde domain for time mapping
 
         This is needed when the declared domains are, for example:
@@ -395,7 +414,8 @@ class Map:
         instead of spend(...year) = sum(spend(.., day) over days in operate)
 
         """
-        samples = [
+        time = domain.periods
+        samples = domain.samples or [
             aspect(component)
             for aspect, comp_dict in self.dispositions[self.space][time].items()
             for component in comp_dict
