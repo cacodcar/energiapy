@@ -56,10 +56,14 @@ class Map:
             diff = self.domain - d
             if diff and not "primary" in diff:
                 self.differences[d] = diff
+
         print("=====")
         print(self.aspect, domain)
         print(self.differences)
         print("=====")
+
+        # if not self.differences:
+        #     return
 
         # these are periods denser and sparser than the current domain
         self._map_across_time()
