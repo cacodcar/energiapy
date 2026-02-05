@@ -113,6 +113,19 @@ class Map:
         # the operators <, > wont work since they will add any space a higher order
         # this will lead to adding twice. India = Goa + Madgaon + Ponje (WRONG)
         # We scale only one level up
+
+        def _cons_existing() -> C:
+            """Return existing map"""
+            return getattr(self.program, self.cons_name) - self.rhs(
+                from_domain, tsum, msum
+            )
+
+        def _cons_new() -> C:
+            """Create and return a new map"""
+            cons = self.v_lower(to_domain) == self.rhs(from_domain, tsum, msum)
+            cons.categorize("Mapping")
+            return cons
+
         if self._check_validity():
             return
 
@@ -121,17 +134,13 @@ class Map:
         self.cons_name = self._give_cname(self.var, from_domain, to_domain, tsum, msum)
 
         if not tsum and not msum and exists:
-            cons_existing: C = getattr(self.program, self.cons_name)
-            setattr(
-                self.program,
-                self.cons_name,
-                cons_existing - self.rhs(from_domain, tsum, msum),
-            )
+            cons = _cons_existing()
 
         else:
-            cons = self.v_lower(to_domain) == self.rhs(from_domain, tsum, msum)
-            setattr(self.program, self.cons_name, cons)
-            cons.categorize("Mapping")
+            cons = _cons_new()
+
+        # set an update of existing or newly created constraintt
+        setattr(self.program, self.cons_name, cons)
 
         self._inform(from_domain)
 
