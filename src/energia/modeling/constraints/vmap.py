@@ -45,6 +45,8 @@ class Map:
         self.reporting = reporting
         self.label = label
 
+        self.cons_name = ""
+
         self._handshake()
 
         if self.domain.lag:
@@ -420,6 +422,10 @@ class Map:
                 differences[d] = diff
 
         return differences
+
+    # -------------------------------------------------------------------#
+    # Dunders
+    # -------------------------------------------------------------------#
 
     def __call__(self, *index: _X):
         return self.aspect(*index)
