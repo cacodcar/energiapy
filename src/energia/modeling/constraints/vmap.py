@@ -41,6 +41,9 @@ class Map:
         self, aspect: Aspect, domain: Domain, reporting=False, label: str = ""
     ):
 
+        if domain.lag:
+            return
+
         self.aspect = aspect
         self.domain = domain
         self.reporting = reporting
@@ -49,9 +52,6 @@ class Map:
         self.cons_name = ""
 
         self._handshake()
-
-        if self.domain.lag:
-            return
 
         # these are periods denser and sparser than the current domain
         self._map_across_time()
@@ -127,9 +127,6 @@ class Map:
     @cached_property
     def var(self) -> Aspect:
         return self.aspect.reporting if self.reporting else self.aspect
-
-    def v_lower(self, to_domain: Domain) -> V:
-        return self(*to_domain).X() if self.reporting else self(*to_domain).V()
 
     @cached_property
     def name(self) -> str:
@@ -333,6 +330,10 @@ class Map:
 
         return f"{var}{to_domain.idxname}_map"
 
+    # -------------------------------------------------------------------#
+    # Constraint writing
+    # -------------------------------------------------------------------#
+
     def rhs(self, domain: Domain, tsum=False, msum=False):
         """Gives the sum of the variable over the domain"""
         varname = (
@@ -359,9 +360,14 @@ class Map:
 
         return v(*domain.I).copy()
 
-    # -------------------------------------------------------------------#
-    # Constraint writing
-    # -------------------------------------------------------------------#
+    def v_lower(self, to_domain: Domain) -> V:
+        """Gives a variable for the lower domain to which the sum is mapped
+
+        :param v_lower: Variable to which mapping is done
+        :type v_lower: V
+
+        """
+        return self(*to_domain).X() if self.reporting else self(*to_domain).V()
 
     def _check_validity(self) -> bool:
         """Check space and time"""
