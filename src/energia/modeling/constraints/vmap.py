@@ -126,7 +126,7 @@ class Map:
         return (self.aspect, from_domain, to_domain)
 
     @cached_property
-    def var(self):
+    def var(self) -> Aspect:
         return self.aspect.reporting if self.reporting else self.aspect
 
     @cached_property
@@ -344,7 +344,6 @@ class Map:
             try:
                 return sigma(v(*domain.I), over=domain.time.i)
             except KeyError:
-                print("aaaaaa", self.aspect, domain)
                 return sigma(v(*self._bridge(domain).I), over=domain.time.i)
 
         if msum:
