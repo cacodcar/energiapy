@@ -48,7 +48,6 @@ class Map:
         self.domain = domain
         self.reporting = reporting
         self.label = label
-
         self.cons_name = ""
 
         self._handshake()
@@ -69,8 +68,21 @@ class Map:
     # -------------------------------------------------------------------#
 
     @timer(logger, kind='map')
-    def write(self, from_domain: Domain, to_domain: Domain, tsum=False, msum=False):
-        """Scales up variable to a lower dimension"""
+    def write(
+        self, from_domain: Domain, to_domain: Domain, tsum=False, msum=False
+    ) -> tuple[Aspect, Domain, Domain]:
+        """Scales up variable to a lower dimension
+
+        :param from_domain: higher order domain from which aspect it mapped
+        :type param: Domain
+        :param to_domain: lower order domain to which aspect is mapped
+        :type param: Domain
+        :param tsum: True if summing across time. Defaults to False
+        :type tsum: bool
+        :param msum: True if summing across modes. Defaults to False
+        :type msum: bool
+
+        """
         # if the variable is being defined for the first time, do not bother with the rest
         # Also note that if a variable already exists then a new is not created
         # thus map_domain is not called in Bind.V()
