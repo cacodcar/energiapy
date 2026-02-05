@@ -15,6 +15,7 @@ logger = logging.getLogger("energia")
 
 if TYPE_CHECKING:
     from gana.sets.constraint import C
+    from gana.sets.variable import V
 
     from ..._core._x import _X
     from ...components.temporal.periods import Periods
@@ -106,8 +107,6 @@ class Map:
 
         self.cons_name = self._give_cname(self.var, from_domain, to_domain, tsum, msum)
 
-        v_lower = self(*to_domain).X() if self.reporting else self(*to_domain).V()
-
         if not tsum and not msum and exists:
             cons_existing: C = getattr(self.program, self.cons_name)
             setattr(
@@ -117,7 +116,7 @@ class Map:
             )
 
         else:
-            cons = v_lower == self.rhs(from_domain, tsum, msum)
+            cons = self.v_lower(to_domain) == self.rhs(from_domain, tsum, msum)
             setattr(self.program, self.cons_name, cons)
             cons.categorize("Mapping")
 
@@ -128,6 +127,9 @@ class Map:
     @cached_property
     def var(self) -> Aspect:
         return self.aspect.reporting if self.reporting else self.aspect
+
+    def v_lower(self, to_domain: Domain) -> V:
+        return self(*to_domain).X() if self.reporting else self(*to_domain).V()
 
     @cached_property
     def name(self) -> str:
