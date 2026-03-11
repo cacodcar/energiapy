@@ -15,6 +15,7 @@ logger = logging.getLogger("energia")
 
 if TYPE_CHECKING:
     from gana.sets.constraint import C
+    from gana.sets.variable import V
 
     from ..._core._x import _X
     from ...components.temporal.periods import Periods
@@ -40,15 +41,16 @@ class Map:
         self, aspect: Aspect, domain: Domain, reporting=False, label: str = ""
     ):
 
+        if domain.lag:
+            return
+
         self.aspect = aspect
         self.domain = domain
         self.reporting = reporting
         self.label = label
+        self.cons_name = ""
 
         self._handshake()
-
-        if self.domain.lag:
-            return
 
         # these are periods denser and sparser than the current domain
         self._map_across_time()
@@ -62,11 +64,25 @@ class Map:
         self._map_across_modes()
 
     # -------------------------------------------------------------------#
-    # Helper functions
+    # Constraint writing
     # -------------------------------------------------------------------#
+
     @timer(logger, kind='map')
-    def write(self, from_domain: Domain, to_domain: Domain, tsum=False, msum=False):
-        """Scales up variable to a lower dimension"""
+    def write(
+        self, from_domain: Domain, to_domain: Domain, tsum=False, msum=False
+    ) -> tuple[Aspect, Domain, Domain]:
+        """Scales up variable to a lower dimension
+
+        :param from_domain: higher order domain from which aspect it mapped
+        :type param: Domain
+        :param to_domain: lower order domain to which aspect is mapped
+        :type param: Domain
+        :param tsum: True if summing across time. Defaults to False
+        :type tsum: bool
+        :param msum: True if summing across modes. Defaults to False
+        :type msum: bool
+
+        """
         # if the variable is being defined for the first time, do not bother with the rest
         # Also note that if a variable already exists then a new is not created
         # thus map_domain is not called in Bind.V()
@@ -97,6 +113,19 @@ class Map:
         # the operators <, > wont work since they will add any space a higher order
         # this will lead to adding twice. India = Goa + Madgaon + Ponje (WRONG)
         # We scale only one level up
+
+        def _cons_existing() -> C:
+            """Return existing map"""
+            return getattr(self.program, self.cons_name) - self.rhs(
+                from_domain, tsum, msum
+            )
+
+        def _cons_new() -> C:
+            """Create and return a new map"""
+            cons = self.v_lower(to_domain) == self.rhs(from_domain, tsum, msum)
+            cons.categorize("Mapping")
+            return cons
+
         if self._check_validity():
             return
 
@@ -104,27 +133,56 @@ class Map:
 
         self.cons_name = self._give_cname(self.var, from_domain, to_domain, tsum, msum)
 
-        v_lower = self(*to_domain).X() if self.reporting else self(*to_domain).V()
-
         if not tsum and not msum and exists:
-            cons_existing: C = getattr(self.program, self.cons_name)
-            setattr(
-                self.program,
-                self.cons_name,
-                cons_existing - self.rhs(from_domain, tsum, msum),
-            )
+            cons = _cons_existing()
 
         else:
-            cons = v_lower == self.rhs(from_domain, tsum, msum)
-            setattr(self.program, self.cons_name, cons)
-            cons.categorize("Mapping")
+            cons = _cons_new()
+
+        # set an update of existing or newly created constraintt
+        setattr(self.program, self.cons_name, cons)
 
         self._inform(from_domain)
 
         return (self.aspect, from_domain, to_domain)
 
+    def rhs(self, domain: Domain, tsum=False, msum=False):
+        """Gives the sum of the variable over the domain"""
+        varname = (
+            f"x_{self.aspect.name}" if (msum and self.reporting) else self.aspect.name
+        )
+        v = getattr(self.program, varname)
+        if tsum:
+            # if the domain has been mapped to but this is a time sum
+            # we need to first map time
+            # and then add it to an existing map at a lower domain
+            try:
+                return sigma(v(*domain.I), over=domain.time.i)
+            except KeyError:
+                return sigma(v(*self._bridge(domain).I), over=domain.time.i)
+
+        if msum:
+            # if the domain has been mapped to but this is a mode sum
+            # we need to first map modes
+            # and then add it to an existing map at a lower domain
+
+            return sigma(v(*domain.I), over=domain.modes.I)
+        # the copy is important since otherwise, the printing will take
+        # the update index if the variable is mutated
+
+        return v(*domain.I).copy()
+
+    def v_lower(self, to_domain: Domain) -> V:
+        """Gives a variable for the lower domain to which the sum is mapped
+
+        :param v_lower: Variable to which mapping is done
+        :type v_lower: V
+
+        """
+        return self(*to_domain).X() if self.reporting else self(*to_domain).V()
+
     @cached_property
-    def var(self):
+    def var(self) -> Aspect:
         return self.aspect.reporting if self.reporting else self.aspect
 
     @cached_property
@@ -134,6 +192,10 @@ class Map:
     @cached_property
     def maps(self) -> dict[Domain, list[Domain]]:
         return self.aspect.maps_report if self.reporting else self.aspect.maps
+
+    # -------------------------------------------------------------------#
+    # Individual Maps
+    # -------------------------------------------------------------------#
 
     def _map_to_sparser_time(self, sparser_periods: list[Periods]):
         """
@@ -260,6 +322,10 @@ class Map:
         else:
             self.write(self.domain, self.domain.edit({"modes": None}), msum=True)
 
+    # -------------------------------------------------------------------#
+    # Checks
+    # -------------------------------------------------------------------#
+
     def _check_existing(self, to_domain: Domain, from_domain: Domain) -> bool:
         """Checks if the map constraint already exists"""
         what = (to_domain - from_domain)[0]
@@ -304,6 +370,18 @@ class Map:
                         return False
         return True
 
+    def _check_validity(self) -> bool:
+        """Check space and time"""
+        if (
+            self.space not in self.dispositions
+            or self.time not in self.dispositions[self.space]
+        ):
+            return True
+
+    # -------------------------------------------------------------------#
+    # Helper Functions
+    # -------------------------------------------------------------------#
+
     def _give_cname(
         self,
         var,
@@ -328,45 +406,6 @@ class Map:
             return f"{var}{from_domain.idxname}_mmap"
 
         return f"{var}{to_domain.idxname}_map"
-
-    def rhs(self, domain: Domain, tsum=False, msum=False):
-        """Gives the sum of the variable over the domain"""
-        varname = (
-            f"x_{self.aspect.name}" if (msum and self.reporting) else self.aspect.name
-        )
-        v = getattr(self.program, varname)
-        if tsum:
-            # if the domain has been mapped to but this is a time sum
-            # we need to first map time
-            # and then add it to an existing map at a lower domain
-            try:
-                return sigma(v(*domain.I), over=domain.time.i)
-            except KeyError:
-                print("aaaaaa", self.aspect, domain)
-                return sigma(v(*self._bridge(domain).I), over=domain.time.i)
-
-        if msum:
-            # if the domain has been mapped to but this is a mode sum
-            # we need to first map modes
-            # and then add it to an existing map at a lower domain
-
-            return sigma(v(*domain.I), over=domain.modes.I)
-        # the copy is important since otherwise, the printing will take
-        # the update index if the variable is mutated
-
-        return v(*domain.I).copy()
-
-    # -------------------------------------------------------------------#
-    # Constraint writing
-    # -------------------------------------------------------------------#
-
-    def _check_validity(self) -> bool:
-        """Check space and time"""
-        if (
-            self.space not in self.dispositions
-            or self.time not in self.dispositions[self.space]
-        ):
-            return True
 
     def _inform(self, from_domain: Domain):
         """Inform components of new constraint"""
@@ -420,6 +459,10 @@ class Map:
                 differences[d] = diff
 
         return differences
+
+    # -------------------------------------------------------------------#
+    # Dunders
+    # -------------------------------------------------------------------#
 
     def __call__(self, *index: _X):
         return self.aspect(*index)
