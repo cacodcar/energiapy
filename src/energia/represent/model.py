@@ -903,6 +903,17 @@ class Model:
                 dump(self.solution, f)
         else:
             raise ValueError(f"Unknown type {as_type} for saving the model")
+        
+
+    def import_solution(self, name: str):
+        """Import a solution from a file
+        Currently supports JSON and pickle
+        
+        :param name: name file including extension
+        :type name: str         
+        """
+        self.program.import_solution(name)      
+
 
     # ------------------------------------------------------------------------
     # * Default Components
