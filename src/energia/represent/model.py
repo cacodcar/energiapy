@@ -18,6 +18,7 @@ from ..components.commodities.material import Material
 from ..components.commodities.resource import Resource
 from ..components.game.couple import Interact
 from ..components.game.player import Player
+
 # from ..components.graph.edge import Edge
 # from ..components.graph.node import Node
 from ..components.impact.categories import Economic, Environ, Social
@@ -39,9 +40,17 @@ from ..dimensions.system import System
 from ..dimensions.time import Time
 from ..library.aliases import aspect_aliases
 from ..library.instructions import costing_commodity, costing_operation
-from ..library.recipes import (capacity_sizing, economic, environmental,
-                               free_movement, inventory_sizing, operating,
-                               social, trade, usage)
+from ..library.recipes import (
+    capacity_sizing,
+    economic,
+    environmental,
+    free_movement,
+    inventory_sizing,
+    operating,
+    social,
+    trade,
+    usage,
+)
 from ..modeling.parameters.instruction import Instruction
 from ..modeling.variables.control import Control
 from ..modeling.variables.recipe import Recipe
@@ -903,17 +912,24 @@ class Model:
                 dump(self.solution, f)
         else:
             raise ValueError(f"Unknown type {as_type} for saving the model")
-        
+
+    def mps(self, n: int = -1):
+        """Generate mps file for nth program
+
+        :param n: The index of the program to generate the mps file for. Defaults to -1.
+        :type n: int, optional
+
+        """
+        self.programs[n].mps()
 
     def import_solution(self, name: str):
         """Import a solution from a file
         Currently supports JSON and pickle
-        
-        :param name: name file including extension
-        :type name: str         
-        """
-        self.program.import_solution(name)      
 
+        :param name: name file including extension
+        :type name: str
+        """
+        self.program.import_solution(name)
 
     # ------------------------------------------------------------------------
     # * Default Components
