@@ -70,6 +70,8 @@ class Program(Prg):
         # Component Index Sets
         self.name = f"Program({self.model})"
 
+
+
     def __getattr__(self, item):
 
         if item in self.model.ancestry:
@@ -79,3 +81,4 @@ class Program(Prg):
         raise AttributeError(
             f"{self} has no '{item}'",
         )
+

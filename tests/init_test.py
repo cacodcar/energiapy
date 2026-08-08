@@ -45,7 +45,7 @@ def test_init():
     with pytest.raises(ValueError):
         m.Link(m.l1, m.l2)
 
-    assert m.A == [[-1.0, 0, 0], [0, 1, 0], [-1.0, 1, 0], [0, 0, 1]]
+    assert m._._.A == [[-1.0, 0, 0], [0, 1, 0], [-1.0, 1, 0], [0, 0, 1]]
 
     assert m.__repr__() == "mm"
 

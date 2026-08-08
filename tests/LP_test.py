@@ -48,7 +48,7 @@ def test_small_1L_1T_1O_LP(m):
 
 @pytest.mark.parametrize("m", ["attrs", "plain"], indirect=True)
 def test_attrs(m):
-    _cons = m.program.constraint_sets
+    _cons = m.program.sets["constraint"]
     m.wind.cons == [_cons[-1], _cons[1], _cons[0]]
     assert not m.wind == m.wf
 
